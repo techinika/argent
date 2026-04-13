@@ -3,9 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
+import Link from "next/link";
 import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
+import { useAdPreferences } from "@/context/AdPreferencesContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -40,6 +42,7 @@ const dateFormats = [
 export default function PersonalSettingsPage() {
   const { user, firebaseUser } = useAuth();
   const { showToast } = useToast();
+  const { showAds, setShowAds, adsEnabled } = useAdPreferences();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<PersonalSettings>({
@@ -252,6 +255,39 @@ export default function PersonalSettingsPage() {
           <Button onClick={handleSavePreferences} loading={saving}>
             Save Preferences
           </Button>
+        </div>
+      </Card>
+
+      <Card title="Ad Preferences">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="font-medium text-zinc-900 dark:text-white">
+                Show Ads in Dashboard
+              </p>
+              <p className="text-sm text-zinc-500">
+                Disable to hide advertisements
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAds(!showAds)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                showAds ? "bg-emerald-600" : "bg-zinc-300 dark:bg-zinc-600"
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                  showAds ? "left-7" : "left-1"
+                }`}
+              />
+            </button>
+          </div>
+          {!showAds && (
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              Ads are disabled. You won't see advertisements in your dashboard.
+            </p>
+          )}
         </div>
       </Card>
 

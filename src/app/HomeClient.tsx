@@ -5,9 +5,12 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/Button";
+import { AdBannerBottom } from "@/components/ui/AdSense";
+import { useAdPreferences } from "@/context/AdPreferencesContext";
 
 export function HomeClient() {
   const { user, loading } = useAuth();
+  const { showAds } = useAdPreferences();
   const router = useRouter();
 
   useEffect(() => {
@@ -332,7 +335,16 @@ export function HomeClient() {
       </main>
 
       <footer className="border-t border-zinc-200 dark:border-zinc-800 py-8 px-4">
-        <div className="max-w-6xl mx-auto text-center text-zinc-600 dark:text-zinc-400">
+        {showAds && <AdBannerBottom />}
+        <div className="max-w-6xl mx-auto text-center text-zinc-600 dark:text-zinc-400 space-y-4">
+          <div className="flex justify-center gap-4 text-sm">
+            <Link href="/terms" className="hover:text-emerald-600">
+              Terms
+            </Link>
+            <Link href="/privacy" className="hover:text-emerald-600">
+              Privacy
+            </Link>
+          </div>
           <p>&copy; {new Date().getFullYear()} Argent. All rights reserved.</p>
         </div>
       </footer>

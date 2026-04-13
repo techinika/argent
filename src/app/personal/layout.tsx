@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { useAdPreferences } from "@/context/AdPreferencesContext";
 import { UserMenu } from "@/components/ui/UserMenu";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { AdBannerTop } from "@/components/ui/AdSense";
 
 const personalNavItems = [
   {
@@ -51,6 +53,7 @@ export default function PersonalLayout({
   children: React.ReactNode;
 }) {
   const { user, loading } = useAuth();
+  const { showAds } = useAdPreferences();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -166,6 +169,7 @@ export default function PersonalLayout({
       <main
         className={`pt-16 ${sidebarOpen ? "md:ml-64" : "ml-0"} transition-all duration-300`}
       >
+        {showAds && <AdBannerTop />}
         <div className="p-4 md:p-6">{children}</div>
       </main>
     </div>

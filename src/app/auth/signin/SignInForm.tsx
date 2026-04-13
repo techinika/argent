@@ -105,6 +105,26 @@ export default function SignInForm() {
               </Link>
             </p>
           </div>
+
+          <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-700">
+            <div className="flex justify-center gap-4 text-sm">
+              <Link href="/" className="text-zinc-500 hover:text-emerald-600">
+                Home
+              </Link>
+              <Link
+                href="/terms"
+                className="text-zinc-500 hover:text-emerald-600"
+              >
+                Terms
+              </Link>
+              <Link
+                href="/privacy"
+                className="text-zinc-500 hover:text-emerald-600"
+              >
+                Privacy
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </div>
