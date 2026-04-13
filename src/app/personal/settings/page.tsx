@@ -1,17 +1,29 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { useRouter } from "next/navigation";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import Link from "next/link";
 import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useAdPreferences } from "@/context/AdPreferencesContext";
+import { useTheme } from "@/components/ui/ThemeProvider";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface PersonalSettings {
   displayName: string;
@@ -43,6 +55,7 @@ export default function PersonalSettingsPage() {
   const { user, firebaseUser } = useAuth();
   const { showToast } = useToast();
   const { showAds, setShowAds, adsEnabled } = useAdPreferences();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<PersonalSettings>({
@@ -53,6 +66,8 @@ export default function PersonalSettingsPage() {
     monthlyBudgetLimit: 0,
     emergencyFundTarget: 0,
   });
+  const [switchAccountOpen, setSwitchAccountOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   const loadSettings = useCallback(async () => {
     if (!user) return;
@@ -73,7 +88,7 @@ export default function PersonalSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, settings]);
 
   useEffect(() => {
     loadSettings();
@@ -125,6 +140,117 @@ export default function PersonalSettingsPage() {
     }
   };
 
+  const checkCanSwitch = async () => {
+    if (!user) return false;
+    const transQ = query(
+      collection(db, "personalTransactions"),
+      where("userId", "==", user.uid),
+    );
+    const transSnap = await getDocs(transQ);
+    return transSnap.empty;
+  };
+
+  const handleSwitchAccount = async () => {
+    if (!user || !firebaseUser) return;
+    setSwitching(true);
+    try {
+      const canSwitch = await checkCanSwitch();
+      if (!canSwitch) {
+        showToast(
+          "Cannot switch account: You have existing transactions",
+          "error",
+        );
+        setSwitchAccountOpen(false);
+        return;
+      }
+
+      await updateProfile(firebaseUser, { displayName: user.displayName });
+      await setDoc(
+        doc(db, "users", user.uid),
+        { role: "business", updatedAt: new Date() },
+        { merge: true },
+      );
+
+      const transQ = query(
+        collection(db, "businessTransactions"),
+        where("userId", "==", user.uid),
+      );
+      const transSnap = await getDocs(transQ);
+      if (transSnap.empty) {
+        await setDoc(doc(db, "currentAccounts", user.uid), {
+          userId: user.uid,
+          balance: 0,
+          totalIncome: 0,
+          totalExpenses: 0,
+          totalSavings: 0,
+          totalBorrowed: 0,
+          lastUpdated: new Date(),
+        });
+      }
+
+      await setDoc(
+        doc(db, "businessSettings", user.uid),
+        {
+          name: user.displayName || "",
+          features: [
+            {
+              id: "1",
+              name: "Budget Alerts",
+              key: "budget_alerts",
+              enabled: true,
+              description: "Get notified when approaching budget limits",
+            },
+            {
+              id: "2",
+              name: "Monthly Reports",
+              key: "monthly_reports",
+              enabled: true,
+              description: "Generate monthly financial reports",
+            },
+            {
+              id: "3",
+              name: "Invoice Generation",
+              key: "invoices",
+              enabled: false,
+              description: "Create and send invoices to clients",
+            },
+            {
+              id: "4",
+              name: "Tax Calculations",
+              key: "tax_calc",
+              enabled: false,
+              description: "Automatic tax calculations",
+            },
+            {
+              id: "5",
+              name: "Multi-Currency",
+              key: "multi_currency",
+              enabled: false,
+              description: "Handle multiple currencies",
+            },
+            {
+              id: "6",
+              name: "API Access",
+              key: "api_access",
+              enabled: false,
+              description: "Programmatic access to your data",
+            },
+          ],
+          updatedAt: new Date(),
+        },
+        { merge: true },
+      );
+
+      showToast("Account type changed to Business", "success");
+      router.push("/business");
+    } catch (err) {
+      showToast("Failed to switch account type", "error");
+    } finally {
+      setSwitching(false);
+      setSwitchAccountOpen(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -143,6 +269,13 @@ export default function PersonalSettingsPage() {
           Manage your personal finance preferences
         </p>
       </div>
+
+      <Card title="Theme">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+          Choose your preferred theme
+        </p>
+        <ThemeToggle />
+      </Card>
 
       <Card title="Profile">
         <div className="flex items-center gap-6 mb-6">
@@ -184,10 +317,14 @@ export default function PersonalSettingsPage() {
       <Card title="Preferences">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+            <label
+              htmlFor="currency-select"
+              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+            >
               Currency
             </label>
             <select
+              id="currency-select"
               value={settings.currency}
               onChange={(e) =>
                 setSettings({ ...settings, currency: e.target.value })
@@ -203,10 +340,14 @@ export default function PersonalSettingsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+            <label
+              htmlFor="date-format-select"
+              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+            >
               Date Format
             </label>
             <select
+              id="date-format-select"
               value={settings.dateFormat}
               onChange={(e) =>
                 setSettings({ ...settings, dateFormat: e.target.value })
@@ -291,6 +432,30 @@ export default function PersonalSettingsPage() {
         </div>
       </Card>
 
+      <Card title="Account Type">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+            <div>
+              <p className="font-medium text-zinc-900 dark:text-white">
+                Personal Account
+              </p>
+              <p className="text-sm text-zinc-500">
+                Currently on personal plan
+              </p>
+            </div>
+            <span className="px-3 py-1 bg-emerald-600 text-white text-sm rounded-full">
+              Active
+            </span>
+          </div>
+          <Button variant="outline" onClick={() => setSwitchAccountOpen(true)}>
+            Switch to Business Account
+          </Button>
+          <p className="text-xs text-zinc-500">
+            Note: You can only switch if you have no transactions
+          </p>
+        </div>
+      </Card>
+
       <Card title="Budget Targets">
         <div className="space-y-4">
           <Input
@@ -322,6 +487,16 @@ export default function PersonalSettingsPage() {
           </Button>
         </div>
       </Card>
+
+      <ConfirmModal
+        isOpen={switchAccountOpen}
+        onClose={() => setSwitchAccountOpen(false)}
+        onConfirm={handleSwitchAccount}
+        title="Switch to Business Account"
+        message="Are you sure you want to switch to a business account? This will give you access to business finance features."
+        confirmText="Switch Account"
+        loading={switching}
+      />
     </div>
   );
 }

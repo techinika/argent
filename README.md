@@ -2,6 +2,8 @@
 
 A comprehensive finance management platform for businesses and personal finance. Built with Next.js 16, Firebase, and Tailwind CSS.
 
+**Argent Finance is a product by [Ubunifu Labs](https://ubunifu.techinika.co.rw)**
+
 ## Features
 
 ### Business Account

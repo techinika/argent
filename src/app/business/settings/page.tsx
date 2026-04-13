@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   collection,
   query,
@@ -8,15 +9,19 @@ import {
   getDocs,
   doc,
   getDoc,
-  updateDoc,
-  addDoc,
+  setDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { updateProfile } from "firebase/auth";
+import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
+import { useTheme } from "@/components/ui/ThemeProvider";
 import { BusinessFeature } from "@/types/team";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 const defaultFeatures: BusinessFeature[] = [
   {
@@ -64,12 +69,17 @@ const defaultFeatures: BusinessFeature[] = [
 ];
 
 export default function BusinessSettingsPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, firebaseUser } = useAuth();
+  const { showToast } = useToast();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const [businessName, setBusinessName] = useState("");
   const [features, setFeatures] = useState<BusinessFeature[]>(defaultFeatures);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [switchAccountOpen, setSwitchAccountOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   const loadSettings = useCallback(async () => {
     if (!user) return;
@@ -81,7 +91,12 @@ export default function BusinessSettingsPage() {
         setBusinessName(data.name || "");
         setFeatures(data.features || defaultFeatures);
       } else {
-        setBusinessName(user.displayName);
+        setBusinessName(user.displayName || "");
+        await setDoc(docRef, {
+          name: user.displayName || "",
+          features: defaultFeatures,
+          createdAt: new Date(),
+        });
       }
     } catch (err) {
       console.error("Error loading settings:", err);
@@ -99,17 +114,95 @@ export default function BusinessSettingsPage() {
     setSaving(true);
     try {
       const docRef = doc(db, "businessSettings", user.uid);
-      await updateDoc(docRef, {
-        name: businessName,
-        features,
-        updatedAt: new Date(),
-      });
+      await setDoc(
+        docRef,
+        {
+          name: businessName,
+          features,
+          updatedAt: new Date(),
+        },
+        { merge: true },
+      );
+      showToast("Settings saved successfully", "success");
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      // Reset saved state after 2 seconds
+      setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error("Error saving settings:", err);
+      showToast("Failed to save settings", "error");
+      setSaved(false);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const checkCanSwitch = async () => {
+    if (!user) return false;
+    const transQ = query(
+      collection(db, "businessTransactions"),
+      where("userId", "==", user.uid),
+    );
+    const transSnap = await getDocs(transQ);
+    return transSnap.empty;
+  };
+
+  const handleSwitchAccount = async () => {
+    if (!user || !firebaseUser) return;
+    setSwitching(true);
+    try {
+      const canSwitch = await checkCanSwitch();
+      if (!canSwitch) {
+        showToast(
+          "Cannot switch account: You have existing transactions",
+          "error",
+        );
+        setSwitchAccountOpen(false);
+        return;
+      }
+
+      await updateProfile(firebaseUser, { displayName: user.displayName });
+      await setDoc(
+        doc(db, "users", user.uid),
+        { role: "personal", updatedAt: new Date() },
+        { merge: true },
+      );
+
+      const transQ = query(
+        collection(db, "personalTransactions"),
+        where("userId", "==", user.uid),
+      );
+      const transSnap = await getDocs(transQ);
+      if (transSnap.empty) {
+        await setDoc(doc(db, "currentAccounts", user.uid), {
+          userId: user.uid,
+          balance: 0,
+          totalIncome: 0,
+          totalExpenses: 0,
+          totalSavings: 0,
+          totalBorrowed: 0,
+          lastUpdated: new Date(),
+        });
+      }
+
+      await setDoc(
+        doc(db, "personalSettings", user.uid),
+        {
+          displayName: user.displayName,
+          currency: "USD",
+          dateFormat: "MM/DD/YYYY",
+          emailNotifications: true,
+          updatedAt: new Date(),
+        },
+        { merge: true },
+      );
+
+      showToast("Account type changed to Personal", "success");
+      router.push("/personal");
+    } catch (err) {
+      showToast("Failed to switch account type", "error");
+    } finally {
+      setSwitching(false);
+      setSwitchAccountOpen(false);
     }
   };
 
@@ -138,6 +231,39 @@ export default function BusinessSettingsPage() {
         </div>
       ) : (
         <>
+          <Card title="Account Type">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                <div>
+                  <p className="font-medium text-zinc-900 dark:text-white">
+                    Business Account
+                  </p>
+                  <p className="text-sm text-zinc-500">
+                    Currently on business plan
+                  </p>
+                </div>
+                <span className="px-3 py-1 bg-emerald-600 text-white text-sm rounded-full">
+                  Active
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setSwitchAccountOpen(true)}
+              >
+                Switch to Personal Account
+              </Button>
+              <p className="text-xs text-zinc-500">
+                Note: You can only switch if you have no transactions
+              </p>
+            </div>
+          </Card>
+
+          <Card title="Theme">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+              Choose your preferred theme
+            </p>
+            <ThemeToggle />
+          </Card>
           <Card title="Business Profile">
             <div className="space-y-4">
               <Input
@@ -190,6 +316,16 @@ export default function BusinessSettingsPage() {
               ))}
             </div>
           </Card>
+
+          <ConfirmModal
+            isOpen={switchAccountOpen}
+            onClose={() => setSwitchAccountOpen(false)}
+            onConfirm={handleSwitchAccount}
+            title="Switch to Personal Account"
+            message="Are you sure you want to switch to a personal account? This will give you access to personal finance features."
+            confirmText="Switch Account"
+            loading={switching}
+          />
         </>
       )}
     </div>
