@@ -224,19 +224,23 @@ export default function PersonalTransactionsPage() {
 
   const filtered =
     filterCategory === "all"
-      ? transactions
-      : transactions.filter((t) => t.category === filterCategory);
+      ? transactions.filter((t) => !t.archived)
+      : transactions.filter(
+          (t) => !t.archived && t.category === filterCategory,
+        );
   const totalIncome = transactions
-    .filter((t) => t.type === "income")
+    .filter((t) => t.type === "income" && !t.archived)
     .reduce((s, t) => s + t.amount, 0);
   const totalExpenses = transactions
-    .filter((t) => t.type === "expense")
+    .filter((t) => t.type === "expense" && !t.archived)
     .reduce((s, t) => s + t.amount, 0);
 
   const byCategory = categories.map((cat) => ({
     ...cat,
     amount: transactions
-      .filter((t) => t.category === cat.value && t.type === "expense")
+      .filter(
+        (t) => !t.archived && t.category === cat.value && t.type === "expense",
+      )
       .reduce((s, t) => s + t.amount, 0),
   }));
 

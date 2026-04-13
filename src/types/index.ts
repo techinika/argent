@@ -95,6 +95,7 @@ export interface PersonalTransaction {
   category: PersonalTransactionCategory;
   description: string;
   date: Date;
+  archived: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

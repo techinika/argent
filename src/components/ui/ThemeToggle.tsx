@@ -3,7 +3,17 @@
 import { useTheme } from "./ThemeProvider";
 
 export function ThemeToggle() {
-  const { resolvedTheme, setTheme, theme } = useTheme();
+  const { resolvedTheme, setTheme, theme, mounted } = useTheme();
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
+        <div className="w-9 h-9" />
+        <div className="w-9 h-9" />
+        <div className="w-9 h-9" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
@@ -11,7 +21,7 @@ export function ThemeToggle() {
         type="button"
         onClick={() => setTheme("light")}
         className={`p-2 rounded-md transition-all ${
-          resolvedTheme === "light" || theme === "system"
+          resolvedTheme === "light"
             ? "bg-white dark:bg-zinc-700 shadow-sm"
             : "hover:bg-zinc-200 dark:hover:bg-zinc-700/50"
         }`}

@@ -6,15 +6,22 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
   addDoc,
   updateDoc,
   deleteDoc,
   doc,
+  runTransaction,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { personalBudgetItemSchema } from "@/lib/schemas";
-import { PersonalBudgetItem, PersonalTransactionCategory } from "@/types";
+import {
+  PersonalBudgetItem,
+  PersonalTransactionCategory,
+  CurrentAccount,
+} from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -36,6 +43,9 @@ export default function PersonalBudgetPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [items, setItems] = useState<PersonalBudgetItem[]>([]);
+  const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PersonalBudgetItem | null>(
@@ -65,6 +75,15 @@ export default function PersonalBudgetPage() {
     setItems(
       snap.docs.map((d) => ({ id: d.id, ...d.data() })) as PersonalBudgetItem[],
     );
+
+    const accountDoc = await getDoc(doc(db, "currentAccounts", user.uid));
+    if (accountDoc.exists()) {
+      setCurrentAccount({
+        id: accountDoc.id,
+        ...accountDoc.data(),
+        lastUpdated: accountDoc.data().lastUpdated?.toDate(),
+      } as CurrentAccount);
+    }
     setLoading(false);
   }, [user]);
 
@@ -121,12 +140,85 @@ export default function PersonalBudgetPage() {
     showToast("Item deleted", "success");
   };
   const handleComplete = async (item: PersonalBudgetItem) => {
-    await updateDoc(doc(db, "personalBudgetItems", item.id), {
-      completed: !item.completed,
-      updatedAt: new Date(),
-    });
-    fetchItems();
-    showToast(item.completed ? "Item restored" : "Item completed", "success");
+    const now = new Date();
+    const isCompleting = !item.completed;
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const accountRef = doc(db, "currentAccounts", user!.uid);
+        const accountDoc = await transaction.get(accountRef);
+
+        if (!accountDoc.exists()) {
+          throw new Error("Account not found");
+        }
+
+        const accountData = accountDoc.data() as CurrentAccount;
+
+        if (isCompleting) {
+          if (item.estimatedCost > accountData.balance) {
+            throw new Error("Insufficient balance to complete this item");
+          }
+
+          transaction.update(accountRef, {
+            balance: accountData.balance - item.estimatedCost,
+            totalExpenses: accountData.totalExpenses + item.estimatedCost,
+            lastUpdated: now,
+          });
+
+          transaction.set(doc(collection(db, "personalTransactions")), {
+            userId: user!.uid,
+            type: "expense",
+            amount: item.estimatedCost,
+            category: item.category,
+            description: `Budget: ${item.name}`,
+            date: now,
+            archived: false,
+            createdAt: now,
+            updatedAt: now,
+          });
+        } else {
+          transaction.update(accountRef, {
+            balance: accountData.balance + item.estimatedCost,
+            totalExpenses: accountData.totalExpenses - item.estimatedCost,
+            lastUpdated: now,
+          });
+
+          const transQ = query(
+            collection(db, "personalTransactions"),
+            where("description", "==", `Budget: ${item.name}`),
+            where("userId", "==", user!.uid),
+          );
+          const transSnap = await getDocs(transQ);
+          for (const t of transSnap.docs) {
+            if (!t.data().archived) {
+              transaction.update(doc(db, "personalTransactions", t.id), {
+                archived: true,
+                updatedAt: now,
+              });
+              break;
+            }
+          }
+        }
+
+        transaction.update(doc(db, "personalBudgetItems", item.id), {
+          completed: isCompleting,
+          updatedAt: now,
+        });
+      });
+
+      fetchItems();
+      showToast(
+        isCompleting
+          ? "Item completed, expense recorded"
+          : "Item restored, expense archived",
+        "success",
+      );
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "Failed to complete item",
+        "error",
+      );
+    }
   };
 
   const resetForm = () => {

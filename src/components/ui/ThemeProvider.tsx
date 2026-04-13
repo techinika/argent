@@ -14,6 +14,7 @@ interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   resolvedTheme: "light" | "dark";
+  mounted: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
@@ -21,14 +22,17 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("system");
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("argent-theme") as Theme | null;
     if (stored) setThemeState(stored);
+    setMounted(true);
   }, []);
 
   useEffect(() => {
     const root = document.documentElement;
+    const body = document.body;
 
     const updateTheme = () => {
       let resolved: "light" | "dark";
@@ -42,7 +46,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setResolvedTheme(resolved);
       root.classList.remove("light", "dark");
       root.classList.add(resolved);
-      root.style.colorScheme = resolved;
+      body.classList.remove("light", "dark");
+      body.classList.add(resolved);
     };
 
     updateTheme();
@@ -61,7 +66,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme, mounted }}>
       {children}
     </ThemeContext.Provider>
   );

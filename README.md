@@ -12,14 +12,24 @@ A comprehensive finance management platform for businesses and personal finance.
 - **Feature Toggles**: Enable/disable features like budget alerts, reports, invoices, and more
 
 ### Personal Account
+- **Current Account System**: Real-time balance tracking that integrates with all features
+  - Income adds to current balance
+  - Expenses/savings deduct from balance (cannot exceed available)
+  - Borrowing (debts owed to you) adds to balance
 - **Financial Goals**: Set and track savings goals with progress indicators
-- **Planned Expenses**: Monthly budget items with essential/non-essential categories
-- **Income/Expense Tracking**: Categorized transactions (necessities, debts, needs, emergencies, etc.)
-- **Debts & Receivables**: Track money owed to/from others
-- **Savings Accounts**: Multiple savings accounts with targets
+- **Planned Expenses**: Monthly budget items that automatically create expense transactions when completed
+  - Marking complete: Creates expense transaction, deducts from balance
+  - Restoring: Archives the transaction, restores balance
+- **Income/Expense Tracking**: Categorized transactions with real-time filtering
+- **Debts & Receivables**: Track money owed to/from others with balance integration
+- **Savings Accounts**: Multiple savings accounts with targets that deduct from balance
 
 ### General
-- **Dark/Light Mode**: Toggle between themes or follow system preference
+- **Custom 404 Page**: Branded error page with navigation options
+- **Dark/Light/System Mode**: Theme toggle with system preference support
+- **Toast Notifications**: User-friendly feedback for all actions
+- **Confirm Modals**: Safe delete confirmations with custom UI
+- **Real-time Updates**: All data synchronized in real-time via Firebase
 - **Secure Authentication**: Firebase Auth with email/password
 - **Document Upload**: Cloudinary integration for receipts and documents
 - **Email Notifications**: Nodemailer for team invitations and password reset
@@ -115,14 +125,12 @@ src/
 │   ├── business/         # Business account pages
 │   └── personal/          # Personal account pages
 ├── components/
-│   ├── ui/               # Reusable UI components
-│   ├── business/         # Business-specific components
-│   └── personal/         # Personal-specific components
-├── context/               # React context providers
+│   └── ui/               # Reusable UI components (Button, Card, Modal, Toast, etc.)
+├── context/               # React context providers (Auth, Toast, Theme)
 ├── lib/                   # Utility functions
 │   ├── firebase.ts      # Firebase config
 │   ├── cloudinary.ts    # Cloudinary config
-│   ├── email.ts        # Email utilities
+│   ├── email.ts         # Email utilities
 │   └── schemas.ts      # Zod validation schemas
 └── types/                # TypeScript type definitions
 ```
@@ -161,13 +169,33 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'business';
     }
     
-    // Personal data
+    // Personal data - includes currentAccounts, personalBudgetItems, personalGoals, personalSavings, debts
     match /personalTransactions/{docId} {
       allow read, write: if request.auth != null && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'personal';
     }
     
     match /personalGoals/{docId} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'personal';
+    }
+    
+    match /personalBudgetItems/{docId} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'personal';
+    }
+    
+    match /personalSavings/{docId} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'personal';
+    }
+    
+    match /debts/{docId} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'personal';
+    }
+    
+    match /currentAccounts/{docId} {
       allow read, write: if request.auth != null && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'personal';
     }
