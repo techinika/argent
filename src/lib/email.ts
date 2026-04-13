@@ -18,7 +18,7 @@ export async function sendTeamInvitation(
   const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/join?token=${token}&business=${businessId}`;
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || "Argent <noreply@argent.app>",
+    from: process.env.SMTP_FROM || "Argent <info@techinika.com>",
     to: email,
     subject: "You have been invited to join a business on Argent",
     html: `
@@ -58,7 +58,7 @@ export async function sendPasswordResetEmail(
   const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?token=${resetToken}`;
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || "Argent <noreply@argent.app>",
+    from: process.env.SMTP_FROM || "Argent <info@techinika.com>",
     to: email,
     subject: "Reset your Argent password",
     html: `
@@ -98,7 +98,7 @@ export async function sendWelcomeEmail(
       : `${process.env.NEXT_PUBLIC_APP_URL}/personal`;
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || "Argent <noreply@argent.app>",
+    from: process.env.SMTP_FROM || "Argent <info@techinika.com>",
     to: email,
     subject: `Welcome to Argent - Your ${role === "business" ? "Business" : "Personal"} Account`,
     html: `

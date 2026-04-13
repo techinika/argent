@@ -32,13 +32,13 @@ export const metadata: Metadata = {
   authors: [{ name: "Ubunifu Labs", url: "https://ubunifu.techinika.co.rw" }],
   creator: "Ubunifu Labs",
   publisher: "Ubunifu Labs",
-  metadataBase: new URL("https://argentfinance.app"),
+  metadataBase: new URL("https://argent.techinika.com"),
   openGraph: {
     type: "website",
     title: "Argent - Finance Management for Personal and Business",
     description:
       "Comprehensive finance management for personal and business. Track budgets, transactions, savings, goals, and team expenses.",
-    url: "https://argentfinance.app",
+    url: "https://argent.techinika.com",
     siteName: "Argent Finance",
     locale: "en_US",
   },

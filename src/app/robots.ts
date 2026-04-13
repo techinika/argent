@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/auth/", "/api/"],
     },
-    sitemap: "https://argentfinance.app/sitemap.xml",
+    sitemap: "https://argent.techinika.com/sitemap.xml",
   };
 }

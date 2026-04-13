@@ -8,7 +8,7 @@ type SEOConfig = {
 };
 
 const SITE_NAME = "Argent";
-const SITE_URL = "https://argent.app";
+const SITE_URL = "https://argent.techinika.com";
 
 export function generateSEO(config: SEOConfig): Metadata {
   const fullTitle =

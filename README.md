@@ -98,7 +98,7 @@ SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=your_email@gmail.com
 SMTP_PASS=your_app_password
-SMTP_FROM=Argent <noreply@argent.app>
+SMTP_FROM=Argent <noreply@techinika.com>
 
 # App URL
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -249,4 +249,4 @@ MIT License - see LICENSE for details.
 ## Support
 
 - Open an issue: https://github.com/your-repo/argent/issues
-- Email: support@argent.app
+- Email: products@techinika.com
