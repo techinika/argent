@@ -52,6 +52,7 @@ const dateFormats = [
 ];
 
 export default function PersonalSettingsPage() {
+  const router = useRouter();
   const { user, firebaseUser } = useAuth();
   const { showToast } = useToast();
   const { showAds, setShowAds, adsEnabled } = useAdPreferences();
