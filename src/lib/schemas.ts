@@ -20,7 +20,7 @@ export const signInSchema = z.object({
 
 export const businessBudgetSchema = z.object({
   type: z.enum(["monthly", "oneTimeExpense", "oneTimeIncome"]),
-  amount: z.number().positive("Amount must be positive"),
+  amount: z.number().gte(0, "Amount cannot be negative"),
   category: z.string().min(1, "Category is required"),
   description: z.string().optional(),
   month: z.number().min(1).max(12).optional(),
@@ -36,7 +36,7 @@ export const businessTransactionSchema = z.object({
     "credit",
     "debit",
   ]),
-  amount: z.number().positive("Amount must be positive"),
+  amount: z.number().gt(0, "Amount must be greater than 0"),
   category: z.string().min(1, "Category is required"),
   description: z.string().optional(),
   date: z.date(),
@@ -45,14 +45,14 @@ export const businessTransactionSchema = z.object({
 
 export const personalGoalSchema = z.object({
   name: z.string().min(1, "Goal name is required"),
-  targetAmount: z.number().positive("Target amount must be positive"),
+  targetAmount: z.number().gte(0, "Target amount cannot be negative"),
   priority: z.enum(["high", "medium", "low"]),
-  deadline: z.date().optional(),
+  deadline: z.string().optional().or(z.date()),
 });
 
 export const personalBudgetItemSchema = z.object({
   name: z.string().min(1, "Item name is required"),
-  estimatedCost: z.number().positive("Cost must be positive"),
+  estimatedCost: z.number().gte(0, "Estimated cost cannot be negative"),
   category: z.enum([
     "necessities",
     "debts",
@@ -68,7 +68,7 @@ export const personalBudgetItemSchema = z.object({
 
 export const personalTransactionSchema = z.object({
   type: z.enum(["income", "expense"]),
-  amount: z.number().positive("Amount must be positive"),
+  amount: z.number().gt(0, "Amount must be greater than 0"),
   category: z.enum([
     "necessities",
     "debts",
@@ -84,14 +84,14 @@ export const personalTransactionSchema = z.object({
 export const debtSchema = z.object({
   type: z.enum(["owed_to", "owed_by"]),
   personName: z.string().min(1, "Person name is required"),
-  amount: z.number().positive("Amount must be positive"),
+  amount: z.number().gt(0, "Amount must be greater than 0"),
   description: z.string().optional(),
-  dueDate: z.date().optional(),
+  dueDate: z.string().optional().or(z.date()),
 });
 
 export const savingsSchema = z.object({
   name: z.string().min(1, "Savings name is required"),
-  amount: z.number().positive("Amount must be positive"),
+  amount: z.number().gt(0, "Amount must be greater than 0"),
   targetAmount: z.number().optional(),
 });
 

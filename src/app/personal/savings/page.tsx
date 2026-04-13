@@ -6,33 +6,42 @@ import {
   query,
   where,
   getDocs,
-  addDoc,
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
+  runTransaction,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { savingsSchema } from "@/lib/schemas";
-import { PersonalSavings } from "@/types";
+import { PersonalSavings, CurrentAccount } from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/context/ToastContext";
 
 export default function PersonalSavingsPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [savings, setSavings] = useState<PersonalSavings[]>([]);
+  const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSavings, setEditingSavings] = useState<PersonalSavings | null>(
     null,
   );
   const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    amount: 0,
-    targetAmount: 0,
+    amount: "",
+    targetAmount: "",
   });
   const [error, setError] = useState("");
 
@@ -46,6 +55,15 @@ export default function PersonalSavingsPage() {
     setSavings(
       snap.docs.map((d) => ({ id: d.id, ...d.data() })) as PersonalSavings[],
     );
+
+    const accountDoc = await getDoc(doc(db, "currentAccounts", user.uid));
+    if (accountDoc.exists()) {
+      setCurrentAccount({
+        id: accountDoc.id,
+        ...accountDoc.data(),
+        lastUpdated: accountDoc.data().lastUpdated?.toDate(),
+      } as CurrentAccount);
+    }
     setLoading(false);
   }, [user]);
 
@@ -56,30 +74,75 @@ export default function PersonalSavingsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setSaving(true);
-    const parsed = savingsSchema.safeParse(formData);
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message);
-      setSaving(false);
+    const amount = parseFloat(formData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      setError("Please enter a valid amount");
       return;
     }
+
+    if (currentAccount && amount > currentAccount.balance) {
+      setError(
+        `Insufficient balance. Your current balance is $${currentAccount.balance.toFixed(2)}`,
+      );
+      return;
+    }
+
+    setSaving(true);
+
     try {
-      const data = {
-        userId: user!.uid,
+      const parsed = savingsSchema.safeParse({
         name: formData.name,
-        amount: formData.amount,
-        targetAmount: formData.targetAmount || undefined,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      if (editingSavings) {
-        await updateDoc(doc(db, "personalSavings", editingSavings.id), {
-          ...data,
-          updatedAt: new Date(),
-        });
-      } else {
-        await addDoc(collection(db, "personalSavings"), data);
+        amount,
+        targetAmount: formData.targetAmount
+          ? parseFloat(formData.targetAmount)
+          : undefined,
+      });
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message);
+        setSaving(false);
+        return;
       }
+
+      await runTransaction(db, async (transaction) => {
+        const accountRef = doc(db, "currentAccounts", user!.uid);
+        const accountDoc = await transaction.get(accountRef);
+
+        if (!accountDoc.exists()) {
+          throw new Error("Account not found");
+        }
+
+        const accountData = accountDoc.data() as CurrentAccount;
+        const newBalance = accountData.balance - amount;
+
+        transaction.update(accountRef, {
+          balance: newBalance,
+          totalSavings: accountData.totalSavings + amount,
+          lastUpdated: new Date(),
+        });
+
+        if (editingSavings) {
+          transaction.update(doc(db, "personalSavings", editingSavings.id), {
+            name: formData.name,
+            amount,
+            targetAmount: formData.targetAmount
+              ? parseFloat(formData.targetAmount)
+              : undefined,
+            updatedAt: new Date(),
+          });
+        } else {
+          transaction.set(doc(collection(db, "personalSavings")), {
+            userId: user!.uid,
+            name: formData.name,
+            amount,
+            targetAmount: formData.targetAmount
+              ? parseFloat(formData.targetAmount)
+              : undefined,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+      });
+
       setModalOpen(false);
       resetForm();
       fetchSavings();
@@ -90,22 +153,24 @@ export default function PersonalSavingsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete?")) return;
-    await deleteDoc(doc(db, "personalSavings", id));
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    await deleteDoc(doc(db, "personalSavings", deleteId));
+    setDeleteId(null);
     fetchSavings();
+    showToast("Savings deleted", "success");
   };
 
   const resetForm = () => {
-    setFormData({ name: "", amount: 0, targetAmount: 0 });
+    setFormData({ name: "", amount: "", targetAmount: "" });
     setEditingSavings(null);
   };
   const openEdit = (s: PersonalSavings) => {
     setEditingSavings(s);
     setFormData({
       name: s.name,
-      amount: s.amount,
-      targetAmount: s.targetAmount || 0,
+      amount: s.amount.toString(),
+      targetAmount: s.targetAmount?.toString() || "",
     });
     setModalOpen(true);
   };
@@ -200,7 +265,7 @@ export default function PersonalSavingsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(s.id)}
+                          onClick={() => setDeleteId(s.id)}
                           className="text-zinc-400 hover:text-red-600"
                           aria-label="Delete"
                         >
@@ -262,13 +327,18 @@ export default function PersonalSavingsPage() {
             onChange={(e) =>
               setFormData({
                 ...formData,
-                amount: parseFloat(e.target.value) || 0,
+                amount: e.target.value,
               })
             }
             placeholder="0.00"
             min="0"
             required
           />
+          {currentAccount && (
+            <p className="text-xs text-zinc-500">
+              Available balance: ${currentAccount.balance.toFixed(2)}
+            </p>
+          )}
           <Input
             label="Target Amount (Optional)"
             type="number"
@@ -276,7 +346,7 @@ export default function PersonalSavingsPage() {
             onChange={(e) =>
               setFormData({
                 ...formData,
-                targetAmount: parseFloat(e.target.value) || 0,
+                targetAmount: e.target.value,
               })
             }
             placeholder="0.00"
@@ -297,6 +367,16 @@ export default function PersonalSavingsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Savings"
+        message="Are you sure you want to delete this savings account?"
+        confirmText="Delete"
+        confirmVariant="danger"
+      />
     </div>
   );
 }

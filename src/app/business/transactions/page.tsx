@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/context/ToastContext";
 
 const transactionTypes: { value: BusinessTransactionType; label: string }[] = [
   { value: "income", label: "Income" },
@@ -32,6 +34,7 @@ const transactionTypes: { value: BusinessTransactionType; label: string }[] = [
 
 export default function BusinessTransactionsPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [transactions, setTransactions] = useState<BusinessTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -46,6 +49,7 @@ export default function BusinessTransactionsPage() {
     budgetId: "",
   });
   const [error, setError] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fetchTransactions = useCallback(async () => {
     if (!user) return;
@@ -112,10 +116,12 @@ export default function BusinessTransactionsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this transaction?")) return;
-    await deleteDoc(doc(db, "businessTransactions", id));
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    await deleteDoc(doc(db, "businessTransactions", deleteId));
+    setDeleteId(null);
     fetchTransactions();
+    showToast("Transaction deleted", "success");
   };
 
   const resetForm = () => {
@@ -268,7 +274,7 @@ export default function BusinessTransactionsPage() {
                     <td className="py-3 px-2 text-right">
                       <button
                         type="button"
-                        onClick={() => handleDelete(trans.id)}
+                        onClick={() => setDeleteId(trans.id)}
                         className="text-zinc-400 hover:text-red-600"
                         aria-label="Delete"
                       >
@@ -374,6 +380,16 @@ export default function BusinessTransactionsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Transaction"
+        message="Are you sure you want to delete this transaction?"
+        confirmText="Delete"
+        confirmVariant="danger"
+      />
     </div>
   );
 }

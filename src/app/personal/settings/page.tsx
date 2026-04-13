@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -38,9 +39,9 @@ const dateFormats = [
 
 export default function PersonalSettingsPage() {
   const { user, firebaseUser } = useAuth();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [settings, setSettings] = useState<PersonalSettings>({
     displayName: "",
     currency: "USD",
@@ -56,9 +57,13 @@ export default function PersonalSettingsPage() {
       const docRef = doc(db, "personalSettings", user.uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setSettings({ ...settings, ...docSnap.data() });
+        setSettings(docSnap.data() as PersonalSettings);
       } else {
-        setSettings((prev) => ({ ...prev, displayName: user.displayName }));
+        setSettings((prev) => ({
+          ...prev,
+          displayName: user.displayName || "",
+        }));
+        await setDoc(docRef, { ...settings, displayName: user.displayName });
       }
     } catch (err) {
       console.error("Error loading settings:", err);
@@ -76,14 +81,16 @@ export default function PersonalSettingsPage() {
     setSaving(true);
     try {
       await updateProfile(firebaseUser, { displayName: settings.displayName });
-      await updateDoc(doc(db, "personalSettings", user.uid), {
-        displayName: settings.displayName,
-        updatedAt: new Date(),
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      const docRef = doc(db, "personalSettings", user.uid);
+      await setDoc(
+        docRef,
+        { displayName: settings.displayName, updatedAt: new Date() },
+        { merge: true },
+      );
+      showToast("Profile updated successfully", "success");
     } catch (err) {
       console.error("Error saving profile:", err);
+      showToast("Failed to save profile", "error");
     } finally {
       setSaving(false);
     }
@@ -93,18 +100,23 @@ export default function PersonalSettingsPage() {
     if (!user) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, "personalSettings", user.uid), {
-        currency: settings.currency,
-        dateFormat: settings.dateFormat,
-        emailNotifications: settings.emailNotifications,
-        monthlyBudgetLimit: settings.monthlyBudgetLimit,
-        emergencyFundTarget: settings.emergencyFundTarget,
-        updatedAt: new Date(),
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      const docRef = doc(db, "personalSettings", user.uid);
+      await setDoc(
+        docRef,
+        {
+          currency: settings.currency,
+          dateFormat: settings.dateFormat,
+          emailNotifications: settings.emailNotifications,
+          monthlyBudgetLimit: settings.monthlyBudgetLimit,
+          emergencyFundTarget: settings.emergencyFundTarget,
+          updatedAt: new Date(),
+        },
+        { merge: true },
+      );
+      showToast("Preferences saved successfully", "success");
     } catch (err) {
       console.error("Error saving preferences:", err);
+      showToast("Failed to save preferences", "error");
     } finally {
       setSaving(false);
     }
@@ -161,7 +173,7 @@ export default function PersonalSettingsPage() {
             className="bg-zinc-100 dark:bg-zinc-800"
           />
           <Button onClick={handleSaveProfile} loading={saving}>
-            {saved ? "Saved!" : "Save Profile"}
+            Save Profile
           </Button>
         </div>
       </Card>
@@ -238,7 +250,7 @@ export default function PersonalSettingsPage() {
           </div>
 
           <Button onClick={handleSavePreferences} loading={saving}>
-            {saved ? "Saved!" : "Save Preferences"}
+            Save Preferences
           </Button>
         </div>
       </Card>
@@ -270,7 +282,7 @@ export default function PersonalSettingsPage() {
             placeholder="0.00"
           />
           <Button onClick={handleSavePreferences} loading={saving}>
-            {saved ? "Saved!" : "Save Targets"}
+            Save Targets
           </Button>
         </div>
       </Card>

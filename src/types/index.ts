@@ -122,6 +122,17 @@ export interface PersonalSavings {
   updatedAt: Date;
 }
 
+export interface CurrentAccount {
+  id: string;
+  userId: string;
+  balance: number;
+  totalIncome: number;
+  totalExpenses: number;
+  totalSavings: number;
+  totalBorrowed: number;
+  lastUpdated: Date;
+}
+
 export interface PersonalFinancialSummary {
   totalIncome: number;
   totalExpenses: number;

@@ -8,16 +8,18 @@ import {
   ReactNode,
 } from "react";
 
+type ToastType = "success" | "error" | "warning" | "info";
+
 interface Toast {
   id: string;
-  type: "success" | "error" | "warning" | "info";
+  type: ToastType;
   title: string;
   message?: string;
 }
 
 interface ToastContextType {
   toasts: Toast[];
-  showToast: (toast: Omit<Toast, "id">) => void;
+  showToast: (message: string, type?: ToastType) => void;
   dismissToast: (id: string) => void;
 }
 
@@ -26,12 +28,12 @@ const ToastContext = createContext<ToastContextType | null>(null);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = useCallback((toast: Omit<Toast, "id">) => {
+  const showToast = useCallback((message: string, type: ToastType = "info") => {
     const id = Math.random().toString(36).substr(2, 9);
-    setToasts((prev) => [...prev, { ...toast, id }]);
+    setToasts((prev) => [...prev, { id, type, title: message }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 5000);
+    }, 4000);
   }, []);
 
   const dismissToast = useCallback((id: string) => {
@@ -45,49 +47,89 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`flex items-start gap-3 p-4 rounded-lg shadow-lg border max-w-sm animate-slide-in ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border min-w-[300px] animate-in slide-in-from-right ${
               toast.type === "success"
-                ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800"
+                ? "bg-emerald-500 border-emerald-600"
                 : toast.type === "error"
-                  ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
+                  ? "bg-red-500 border-red-600"
                   : toast.type === "warning"
-                    ? "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800"
-                    : "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800"
+                    ? "bg-yellow-500 border-yellow-600"
+                    : "bg-blue-500 border-blue-600"
             }`}
+            role="alert"
           >
-            <div className="flex-1">
-              <p
-                className={`font-medium text-sm ${
-                  toast.type === "success"
-                    ? "text-emerald-800 dark:text-emerald-200"
-                    : toast.type === "error"
-                      ? "text-red-800 dark:text-red-200"
-                      : toast.type === "warning"
-                        ? "text-yellow-800 dark:text-yellow-200"
-                        : "text-blue-800 dark:text-blue-200"
-                }`}
+            {toast.type === "success" && (
+              <svg
+                className="w-5 h-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
               >
-                {toast.title}
-              </p>
-              {toast.message && (
-                <p
-                  className={`text-sm mt-1 ${
-                    toast.type === "success"
-                      ? "text-emerald-600 dark:text-emerald-300"
-                      : toast.type === "error"
-                        ? "text-red-600 dark:text-red-300"
-                        : toast.type === "warning"
-                          ? "text-yellow-600 dark:text-yellow-300"
-                          : "text-blue-600 dark:text-blue-300"
-                  }`}
-                >
-                  {toast.message}
-                </p>
-              )}
-            </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            )}
+            {toast.type === "error" && (
+              <svg
+                className="w-5 h-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            )}
+            {toast.type === "warning" && (
+              <svg
+                className="w-5 h-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+            )}
+            {toast.type === "info" && (
+              <svg
+                className="w-5 h-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            )}
+            <p className="flex-1 text-sm font-medium text-white">
+              {toast.title}
+            </p>
             <button
+              type="button"
               onClick={() => dismissToast(toast.id)}
-              className="text-zinc-400 hover:text-zinc-600"
+              className="text-white/80 hover:text-white"
+              aria-label="Close"
             >
               <svg
                 className="w-4 h-4"

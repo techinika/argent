@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/context/ToastContext";
 
 const categories: { value: PersonalTransactionCategory; label: string }[] = [
   { value: "necessities", label: "Necessities" },
@@ -32,6 +34,7 @@ const categories: { value: PersonalTransactionCategory; label: string }[] = [
 
 export default function PersonalBudgetPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [items, setItems] = useState<PersonalBudgetItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -50,6 +53,7 @@ export default function PersonalBudgetPage() {
     year: new Date().getFullYear(),
   });
   const [error, setError] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fetchItems = useCallback(async () => {
     if (!user) return;
@@ -109,10 +113,12 @@ export default function PersonalBudgetPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this item?")) return;
-    await deleteDoc(doc(db, "personalBudgetItems", id));
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    await deleteDoc(doc(db, "personalBudgetItems", deleteId));
+    setDeleteId(null);
     fetchItems();
+    showToast("Item deleted", "success");
   };
   const handleComplete = async (item: PersonalBudgetItem) => {
     await updateDoc(doc(db, "personalBudgetItems", item.id), {
@@ -120,6 +126,7 @@ export default function PersonalBudgetPage() {
       updatedAt: new Date(),
     });
     fetchItems();
+    showToast(item.completed ? "Item restored" : "Item completed", "success");
   };
 
   const resetForm = () => {
@@ -311,7 +318,7 @@ export default function PersonalBudgetPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => setDeleteId(item.id)}
                           className="text-zinc-400 hover:text-red-600"
                           aria-label="Delete"
                         >
@@ -409,7 +416,7 @@ export default function PersonalBudgetPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => setDeleteId(item.id)}
                           className="text-zinc-400 hover:text-red-600"
                           aria-label="Delete"
                         >
@@ -531,6 +538,16 @@ export default function PersonalBudgetPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Item"
+        message="Are you sure you want to delete this budget item?"
+        confirmText="Delete"
+        confirmVariant="danger"
+      />
     </div>
   );
 }

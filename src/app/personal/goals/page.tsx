@@ -20,22 +20,26 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/context/ToastContext";
 
 export default function PersonalGoalsPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [goals, setGoals] = useState<PersonalGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<PersonalGoal | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState<{
     name: string;
-    targetAmount: number;
+    targetAmount: string;
     priority: "high" | "medium" | "low";
     deadline: string;
   }>({
     name: "",
-    targetAmount: 0,
+    targetAmount: "",
     priority: "medium",
     deadline: "",
   });
@@ -66,7 +70,16 @@ export default function PersonalGoalsPage() {
     e.preventDefault();
     setError("");
     setSaving(true);
-    const parsed = personalGoalSchema.safeParse(formData);
+    const amount = parseFloat(formData.targetAmount);
+    if (isNaN(amount) || amount < 0) {
+      setError("Please enter a valid amount");
+      setSaving(false);
+      return;
+    }
+    const parsed = personalGoalSchema.safeParse({
+      ...formData,
+      targetAmount: amount,
+    });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message);
       setSaving(false);
@@ -102,10 +115,12 @@ export default function PersonalGoalsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this goal?")) return;
-    await deleteDoc(doc(db, "personalGoals", id));
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    await deleteDoc(doc(db, "personalGoals", deleteId));
+    setDeleteId(null);
     fetchGoals();
+    showToast("Goal deleted", "success");
   };
   const handleComplete = async (goal: PersonalGoal) => {
     await updateDoc(doc(db, "personalGoals", goal.id), {
@@ -113,12 +128,13 @@ export default function PersonalGoalsPage() {
       updatedAt: new Date(),
     });
     fetchGoals();
+    showToast(goal.completed ? "Goal restored" : "Goal completed", "success");
   };
 
   const resetForm = () => {
     setFormData({
       name: "",
-      targetAmount: 0,
+      targetAmount: "",
       priority: "medium",
       deadline: "",
     });
@@ -128,7 +144,7 @@ export default function PersonalGoalsPage() {
     setEditingGoal(goal);
     setFormData({
       name: goal.name,
-      targetAmount: goal.targetAmount,
+      targetAmount: goal.targetAmount.toString(),
       priority: goal.priority,
       deadline: goal.deadline ? goal.deadline.toISOString().split("T")[0] : "",
     });
@@ -246,7 +262,7 @@ export default function PersonalGoalsPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDelete(goal.id)}
+                            onClick={() => setDeleteId(goal.id)}
                             className="text-zinc-400 hover:text-red-600"
                             aria-label="Delete"
                           >
@@ -336,7 +352,7 @@ export default function PersonalGoalsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(goal.id)}
+                        onClick={() => setDeleteId(goal.id)}
                         className="text-zinc-400 hover:text-red-600"
                         aria-label="Delete"
                       >
@@ -389,7 +405,7 @@ export default function PersonalGoalsPage() {
             onChange={(e) =>
               setFormData({
                 ...formData,
-                targetAmount: parseFloat(e.target.value) || 0,
+                targetAmount: e.target.value,
               })
             }
             placeholder="0.00"
@@ -434,6 +450,16 @@ export default function PersonalGoalsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Goal"
+        message="Are you sure you want to delete this goal?"
+        confirmText="Delete"
+        confirmVariant="danger"
+      />
     </div>
   );
 }

@@ -11,35 +11,45 @@ import {
   deleteDoc,
   doc,
   orderBy,
+  getDoc,
+  runTransaction,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { debtSchema } from "@/lib/schemas";
-import { Debt } from "@/types";
+import { Debt, CurrentAccount } from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/context/ToastContext";
 
 export default function PersonalDebtsPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [debts, setDebts] = useState<Debt[]>([]);
+  const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<string>("all");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState<{
     type: "owed_to" | "owed_by";
     personName: string;
-    amount: number;
+    amount: string;
     description: string;
     dueDate: string;
   }>({
     type: "owed_to",
     personName: "",
-    amount: 0,
+    amount: "",
     description: "",
     dueDate: "",
   });
@@ -56,6 +66,15 @@ export default function PersonalDebtsPage() {
         dueDate: d.data().dueDate?.toDate(),
       })) as Debt[],
     );
+
+    const accountDoc = await getDoc(doc(db, "currentAccounts", user.uid));
+    if (accountDoc.exists()) {
+      setCurrentAccount({
+        id: accountDoc.id,
+        ...accountDoc.data(),
+        lastUpdated: accountDoc.data().lastUpdated?.toDate(),
+      } as CurrentAccount);
+    }
     setLoading(false);
   }, [user]);
 
@@ -66,33 +85,76 @@ export default function PersonalDebtsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setSaving(true);
-    const parsed = debtSchema.safeParse(formData);
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message);
-      setSaving(false);
+    const amount = parseFloat(formData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      setError("Please enter a valid amount");
       return;
     }
+
+    setSaving(true);
+
     try {
-      const data = {
-        userId: user!.uid,
-        type: formData.type,
-        personName: formData.personName,
-        amount: formData.amount,
-        description: formData.description || "",
-        dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
-        cleared: editingDebt?.cleared || false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      if (editingDebt) {
-        await updateDoc(doc(db, "debts", editingDebt.id), {
-          ...data,
-          updatedAt: new Date(),
+      const parsed = debtSchema.safeParse({
+        ...formData,
+        amount,
+      });
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message);
+        setSaving(false);
+        return;
+      }
+
+      if (formData.type === "owed_to") {
+        await runTransaction(db, async (transaction) => {
+          const accountRef = doc(db, "currentAccounts", user!.uid);
+          const accountDoc = await transaction.get(accountRef);
+
+          if (!accountDoc.exists()) {
+            throw new Error("Account not found");
+          }
+
+          const accountData = accountDoc.data() as CurrentAccount;
+
+          transaction.update(accountRef, {
+            balance: accountData.balance + amount,
+            totalBorrowed: accountData.totalBorrowed + amount,
+            lastUpdated: new Date(),
+          });
+
+          transaction.set(doc(collection(db, "debts")), {
+            userId: user!.uid,
+            type: formData.type,
+            personName: formData.personName,
+            amount,
+            description: formData.description || "",
+            dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
+            cleared: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
         });
       } else {
-        await addDoc(collection(db, "debts"), data);
+        const data = {
+          userId: user!.uid,
+          type: formData.type,
+          personName: formData.personName,
+          amount,
+          description: formData.description || "",
+          dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
+          cleared: editingDebt?.cleared || false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        if (editingDebt) {
+          await updateDoc(doc(db, "debts", editingDebt.id), {
+            ...data,
+            updatedAt: new Date(),
+          });
+        } else {
+          await addDoc(collection(db, "debts"), data);
+        }
       }
+
       setModalOpen(false);
       resetForm();
       fetchDebts();
@@ -103,10 +165,12 @@ export default function PersonalDebtsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete?")) return;
-    await deleteDoc(doc(db, "debts", id));
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    await deleteDoc(doc(db, "debts", deleteId));
+    setDeleteId(null);
     fetchDebts();
+    showToast("Debt deleted", "success");
   };
   const handleClear = async (debt: Debt) => {
     await updateDoc(doc(db, "debts", debt.id), {
@@ -114,13 +178,14 @@ export default function PersonalDebtsPage() {
       updatedAt: new Date(),
     });
     fetchDebts();
+    showToast(debt.cleared ? "Debt restored" : "Debt cleared", "success");
   };
 
   const resetForm = () => {
     setFormData({
       type: "owed_to",
       personName: "",
-      amount: 0,
+      amount: "",
       description: "",
       dueDate: "",
     });
@@ -131,7 +196,7 @@ export default function PersonalDebtsPage() {
     setFormData({
       type: debt.type,
       personName: debt.personName,
-      amount: debt.amount,
+      amount: debt.amount.toString(),
       description: debt.description || "",
       dueDate: debt.dueDate ? debt.dueDate.toISOString().split("T")[0] : "",
     });
@@ -280,7 +345,7 @@ export default function PersonalDebtsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(debt.id)}
+                        onClick={() => setDeleteId(debt.id)}
                         className="text-zinc-400 hover:text-red-600"
                         aria-label="Delete"
                       >
@@ -392,7 +457,7 @@ export default function PersonalDebtsPage() {
             onChange={(e) =>
               setFormData({
                 ...formData,
-                amount: parseFloat(e.target.value) || 0,
+                amount: e.target.value,
               })
             }
             placeholder="0.00"
@@ -430,6 +495,16 @@ export default function PersonalDebtsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Debt"
+        message="Are you sure you want to delete this debt?"
+        confirmText="Delete"
+        confirmVariant="danger"
+      />
     </div>
   );
 }

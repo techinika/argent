@@ -20,6 +20,8 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
 import { Avatar } from "@/components/ui/Avatar";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/context/ToastContext";
 
 const roles = [
   { value: "admin", label: "Admin - Full access" },
@@ -29,6 +31,7 @@ const roles = [
 
 export default function BusinessTeamPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -44,6 +47,7 @@ export default function BusinessTeamPage() {
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fetchMembers = useCallback(async () => {
     if (!user) return;
@@ -112,10 +116,12 @@ export default function BusinessTeamPage() {
     }
   };
 
-  const handleRemove = async (memberId: string) => {
-    if (!confirm("Are you sure you want to remove this team member?")) return;
-    await deleteDoc(doc(db, "teamMembers", memberId));
+  const handleRemove = async () => {
+    if (!deleteId) return;
+    await deleteDoc(doc(db, "teamMembers", deleteId));
+    setDeleteId(null);
     fetchMembers();
+    showToast("Team member removed", "success");
   };
 
   const handleUpdateRole = async (memberId: string, newRole: string) => {
@@ -186,7 +192,7 @@ export default function BusinessTeamPage() {
                           />
                           <button
                             type="button"
-                            onClick={() => handleRemove(member.id)}
+                            onClick={() => setDeleteId(member.id)}
                             className="p-2 text-zinc-400 hover:text-red-600 transition-colors"
                             aria-label="Remove member"
                           >
@@ -232,7 +238,7 @@ export default function BusinessTeamPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleRemove(member.id)}
+                      onClick={() => setDeleteId(member.id)}
                       className="text-sm text-red-600 hover:text-red-700"
                     >
                       Cancel Invitation
@@ -304,6 +310,16 @@ export default function BusinessTeamPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleRemove}
+        title="Remove Team Member"
+        message="Are you sure you want to remove this team member?"
+        confirmText="Remove"
+        confirmVariant="danger"
+      />
     </div>
   );
 }
