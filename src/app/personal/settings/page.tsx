@@ -55,7 +55,7 @@ export default function PersonalSettingsPage() {
   const router = useRouter();
   const { user, firebaseUser } = useAuth();
   const { showToast } = useToast();
-  const { showAds, setShowAds, adsEnabled } = useAdPreferences();
+  const { showAds, setShowAds } = useAdPreferences();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -278,6 +278,30 @@ export default function PersonalSettingsPage() {
         <ThemeToggle />
       </Card>
 
+      <Card title="Account Type">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+            <div>
+              <p className="font-medium text-zinc-900 dark:text-white">
+                Personal Account
+              </p>
+              <p className="text-sm text-zinc-500">
+                Currently on personal plan
+              </p>
+            </div>
+            <span className="px-3 py-1 bg-emerald-600 text-white text-sm rounded-full">
+              Active
+            </span>
+          </div>
+          <Button variant="outline" onClick={() => setSwitchAccountOpen(true)}>
+            Switch to Business Account
+          </Button>
+          <p className="text-xs text-zinc-500">
+            Note: You can only switch if you have no transactions
+          </p>
+        </div>
+      </Card>
+
       <Card title="Profile">
         <div className="flex items-center gap-6 mb-6">
           <Avatar
@@ -494,7 +518,7 @@ export default function PersonalSettingsPage() {
         onClose={() => setSwitchAccountOpen(false)}
         onConfirm={handleSwitchAccount}
         title="Switch to Business Account"
-        message="Are you sure you want to switch to a business account? This will give you access to business finance features."
+        message="Are you sure you want to switch to a business account? This will give you access to business finance features like team management, budgets, and invoices."
         confirmText="Switch Account"
         loading={switching}
       />
