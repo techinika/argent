@@ -223,7 +223,7 @@ export default function PersonalGoalsPage() {
           active: true,
           createdAt: new Date(),
           updatedAt: new Date(),
-        };
+        });
       }
       setInstallmentModalOpen(false);
       setSelectedGoal(null);
@@ -234,8 +234,6 @@ export default function PersonalGoalsPage() {
     } finally {
       setSaving(false);
     }
-  };
-    showToast(goal.completed ? "Goal restored" : "Goal completed", "success");
   };
 
   const resetForm = () => {
@@ -423,18 +421,6 @@ export default function PersonalGoalsPage() {
                           <span className="text-blue-500">Auto: {formatCurrency(installments.find((i) => i.linkedId === goal.id)?.amount || 0)}/{installments.find((i) => i.linkedId === goal.id)?.frequency}</span>
                         )}
                       </div>
-                        <span
-                          className={
-                            goal.priority === "high"
-                              ? "text-red-500"
-                              : goal.priority === "low"
-                                ? "text-zinc-400"
-                                : "text-yellow-500"
-                          }
-                        >
-                          {goal.priority}
-                        </span>
-                      </div>
                     </div>
                   );
                 })}
@@ -581,8 +567,6 @@ export default function PersonalGoalsPage() {
             </Button>
           </div>
         </form>
-      </Modal>
-
       </Modal>
 
       <Modal

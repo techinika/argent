@@ -296,14 +296,13 @@ export default function PersonalTransactionsPage() {
             {formatCurrency(totalExpenses)}
           </div>
         </Card>
-        <Card>
+<Card>
           <div className="text-sm text-zinc-500 dark:text-zinc-400">Net</div>
-<div
-                        className={`font-semibold ${trans.type === "income" ? "text-emerald-600" : "text-red-600"}`}
-                      >
-                        {trans.type === "income" ? "+" : "-"}
-                        {formatCurrency(trans.amount)}
-                      </div>
+          <div
+            className={`text-2xl font-bold ${totalIncome - totalExpenses >= 0 ? "text-emerald-600" : "text-red-600"}`}
+          >
+            {formatCurrency(totalIncome - totalExpenses)}
+          </div>
         </Card>
       </div>
 

@@ -84,6 +84,7 @@ export interface InstallmentPlan {
   nextDueDate: Date;
   lastPaidDate?: Date;
   active: boolean;
+  linkedSavingsId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
