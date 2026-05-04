@@ -10,6 +10,7 @@ import {
   query,
   where,
   getDocs,
+  deleteDoc,
 } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import Link from "next/link";
@@ -71,6 +72,51 @@ export default function PersonalSettingsPage() {
   });
   const [switchAccountOpen, setSwitchAccountOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [resetDataOpen, setResetDataOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetAllData = async () => {
+    if (!user) return;
+    setResetting(true);
+    try {
+      const collections = [
+        "personalTransactions",
+        "personalSavings",
+        "personalGoals",
+        "personalBudgetItems",
+        "debts",
+      ];
+
+      for (const colName of collections) {
+        const q = query(collection(db, colName), where("userId", "==", user.uid));
+        const snap = await getDocs(q);
+        const deletePromises = snap.docs.map((d) => deleteDoc(doc(db, colName, d.id)));
+        await Promise.all(deletePromises);
+      }
+
+      const accountRef = doc(db, "currentAccounts", user.uid);
+      const accountSnap = await getDoc(accountRef);
+      if (accountSnap.exists()) {
+        await setDoc(accountRef, {
+          balance: 0,
+          totalIncome: 0,
+          totalExpenses: 0,
+          totalSavings: 0,
+          totalBorrowed: 0,
+          lastUpdated: new Date(),
+        });
+      }
+
+      showToast("All data has been reset successfully", "success");
+      setResetDataOpen(false);
+      router.push("/personal");
+    } catch (err) {
+      console.error("Error resetting data:", err);
+      showToast("Failed to reset data", "error");
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const loadSettings = useCallback(async () => {
     if (!user) return;
@@ -531,6 +577,25 @@ export default function PersonalSettingsPage() {
         </div>
       </Card>
 
+      <Card title="Danger Zone">
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <p className="font-medium text-red-900 dark:text-red-200">
+              Reset All Data
+            </p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+              This will permanently delete all your transactions, savings, goals, debts, and budget items. Your account balance will be reset to zero. This action cannot be undone.
+            </p>
+          </div>
+          <Button
+            variant="danger"
+            onClick={() => setResetDataOpen(true)}
+          >
+            Reset All Data
+          </Button>
+        </div>
+      </Card>
+
       <ConfirmModal
         isOpen={switchAccountOpen}
         onClose={() => setSwitchAccountOpen(false)}
@@ -539,6 +604,17 @@ export default function PersonalSettingsPage() {
         message="Are you sure you want to switch to a business account? This will give you access to business finance features like team management, budgets, and invoices."
         confirmText="Switch Account"
         loading={switching}
+      />
+
+      <ConfirmModal
+        isOpen={resetDataOpen}
+        onClose={() => setResetDataOpen(false)}
+        onConfirm={handleResetAllData}
+        title="Reset All Data"
+        message="Are you sure you want to reset all your data? This will permanently delete all your transactions, savings, goals, debts, and budget items. Your account balance will be set to zero. This action cannot be undone."
+        confirmText="Reset Data"
+        confirmVariant="danger"
+        loading={resetting}
       />
     </div>
   );
