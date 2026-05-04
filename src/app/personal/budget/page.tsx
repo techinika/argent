@@ -105,18 +105,21 @@ export default function PersonalBudgetPage() {
       return;
     }
     try {
-      const data = {
+      const data: Record<string, unknown> = {
         userId: user!.uid,
         name: formData.name,
         estimatedCost: formData.estimatedCost,
         category: formData.category,
         isEssential: formData.isEssential,
-        month: formData.hasMonth ? formData.month : undefined,
-        year: formData.hasMonth ? formData.year : undefined,
         completed: editingItem?.completed || false,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+
+      if (formData.hasMonth) {
+        data.month = formData.month;
+        data.year = formData.year;
+      }
       if (editingItem) {
         await updateDoc(doc(db, "personalBudgetItems", editingItem.id), {
           ...data,
