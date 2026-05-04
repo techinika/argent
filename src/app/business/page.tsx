@@ -11,12 +11,14 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings } from "@/hooks/useSettings";
 import { BusinessTransaction, BusinessBudget } from "@/types";
 import { Card } from "@/components/ui/Card";
 import Link from "next/link";
 
 export default function BusinessDashboard() {
   const { user } = useAuth();
+  const { formatCurrency, formatDate } = useSettings();
   const [transactions, setTransactions] = useState<BusinessTransaction[]>([]);
   const [budgets, setBudgets] = useState<BusinessBudget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +39,7 @@ export default function BusinessDashboard() {
           collection(db, "businessTransactions"),
           where("userId", "==", userId),
           orderBy("date", "desc"),
-          limit(10),
+          limit(50),
         );
         const transSnap = await getDocs(transQuery);
         const transData = transSnap.docs.map((doc) => ({
@@ -101,11 +103,36 @@ export default function BusinessDashboard() {
   }
 
   const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
   const yearBudgets = budgets.filter((b) => b.year === currentYear);
   const totalBudgeted = yearBudgets.reduce((sum, b) => {
     if (b.type === "monthly") return sum + b.amount * 12;
     return sum + b.amount;
   }, 0);
+
+  const monthlyTransactions = transactions.filter((t) => {
+    const d = new Date(t.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+
+  const monthlyExpenses = monthlyTransactions
+    .filter((t) => t.type === "expense")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const monthlyIncome = monthlyTransactions
+    .filter((t) => t.type === "income")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const monthlyIncomeByCategory = monthlyTransactions
+    .filter((t) => t.type === "income")
+    .reduce((acc, t) => {
+      acc[t.category] = (acc[t.category] || 0) + t.amount;
+      return acc;
+    }, {} as Record<string, number>);
+
+  const monthlyBudget = yearBudgets
+    .filter((b) => b.type === "monthly")
+    .reduce((sum, b) => sum + b.amount, 0);
 
   return (
     <div className="space-y-6">
@@ -127,7 +154,7 @@ export default function BusinessDashboard() {
             Total Income
           </div>
           <div className="text-2xl font-bold text-emerald-600">
-            ${stats.totalIncome.toLocaleString()}
+            {formatCurrency(stats.totalIncome)}
           </div>
         </Card>
         <Card>
@@ -135,7 +162,7 @@ export default function BusinessDashboard() {
             Total Expenses
           </div>
           <div className="text-2xl font-bold text-red-600">
-            ${stats.totalExpenses.toLocaleString()}
+            {formatCurrency(stats.totalExpenses)}
           </div>
         </Card>
         <Card>
@@ -143,7 +170,7 @@ export default function BusinessDashboard() {
             Total Savings
           </div>
           <div className="text-2xl font-bold text-blue-600">
-            ${stats.totalSavings.toLocaleString()}
+            {formatCurrency(stats.totalSavings)}
           </div>
         </Card>
         <Card>
@@ -151,12 +178,60 @@ export default function BusinessDashboard() {
             Investments
           </div>
           <div className="text-2xl font-bold text-purple-600">
-            ${stats.totalInvestments.toLocaleString()}
+            {formatCurrency(stats.totalInvestments)}
           </div>
         </Card>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-3 gap-6">
+        <Card title={`This Month's Spending (${new Date().toLocaleString('default', { month: 'long' })})`}>
+          <div className="space-y-4">
+            <div className="flex justify-between">
+              <span className="text-zinc-600 dark:text-zinc-400">Monthly Budget</span>
+              <span className="font-semibold">{formatCurrency(monthlyBudget)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-600 dark:text-zinc-400">Spent So Far</span>
+              <span className={`font-semibold ${monthlyExpenses > monthlyBudget ? "text-red-600" : "text-emerald-600"}`}>
+                {formatCurrency(monthlyExpenses)}
+              </span>
+            </div>
+            <div className="flex justify-between border-t pt-4">
+              <span className="text-zinc-600 dark:text-zinc-400">Remaining</span>
+              <span className={`font-semibold ${monthlyBudget - monthlyExpenses >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                {formatCurrency(monthlyBudget - monthlyExpenses)}
+              </span>
+            </div>
+          </div>
+          <Link href="/business/budget" className="block mt-4 text-sm text-emerald-600 hover:text-emerald-700">
+            Manage Budgets →
+          </Link>
+        </Card>
+
+        <Card title={`Expected Income This Month (${new Date().toLocaleString('default', { month: 'long' })})`}>
+          <div className="space-y-4">
+            <div className="flex justify-between">
+              <span className="text-zinc-600 dark:text-zinc-400">Projected</span>
+              <span className="font-semibold text-emerald-600">{formatCurrency(monthlyIncome)}</span>
+            </div>
+            {Object.entries(monthlyIncomeByCategory).length === 0 ? (
+              <p className="text-zinc-500 text-sm">No income yet this month</p>
+            ) : (
+              <div className="space-y-2">
+                {Object.entries(monthlyIncomeByCategory).map(([category, amount]) => (
+                  <div key={category} className="flex justify-between text-sm">
+                    <span className="text-zinc-600 dark:text-zinc-400">{category}</span>
+                    <span className="font-medium">{formatCurrency(amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <Link href="/business/transactions" className="block mt-4 text-sm text-emerald-600 hover:text-emerald-700">
+            View Transactions →
+          </Link>
+        </Card>
+
         <Card title="Budget Overview">
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -164,7 +239,7 @@ export default function BusinessDashboard() {
                 {currentYear} Budget
               </span>
               <span className="font-semibold">
-                ${totalBudgeted.toLocaleString()}
+                {formatCurrency(totalBudgeted)}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -172,7 +247,7 @@ export default function BusinessDashboard() {
                 Spent (YTD)
               </span>
               <span className="font-semibold">
-                ${stats.totalExpenses.toLocaleString()}
+                {formatCurrency(stats.totalExpenses)}
               </span>
             </div>
             <div className="flex justify-between items-center border-t pt-4">
@@ -182,7 +257,7 @@ export default function BusinessDashboard() {
               <span
                 className={`font-semibold ${totalBudgeted - stats.totalExpenses >= 0 ? "text-emerald-600" : "text-red-600"}`}
               >
-                ${(totalBudgeted - stats.totalExpenses).toLocaleString()}
+                {formatCurrency(totalBudgeted - stats.totalExpenses)}
               </span>
             </div>
           </div>
@@ -193,41 +268,41 @@ export default function BusinessDashboard() {
             Manage Budgets →
           </Link>
         </Card>
+      </div>
 
-        <Card title="Recent Transactions">
-          {transactions.length === 0 ? (
-            <p className="text-zinc-500">No transactions yet</p>
-          ) : (
-            <div className="space-y-3">
-              {transactions.slice(0, 5).map((trans) => (
-                <div
-                  key={trans.id}
-                  className="flex justify-between items-center py-2 border-b last:border-0"
-                >
-                  <div>
-                    <div className="font-medium">{trans.category}</div>
-                    <div className="text-xs text-zinc-500">
-                      {trans.date.toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div
-                    className={`font-semibold ${trans.type === "income" ? "text-emerald-600" : "text-red-600"}`}
-                  >
-                    {trans.type === "income" ? "+" : "-"}$
-                    {trans.amount.toLocaleString()}
+      <Card title="Recent Transactions">
+        {transactions.length === 0 ? (
+          <p className="text-zinc-500">No transactions yet</p>
+        ) : (
+          <div className="space-y-3">
+            {transactions.slice(0, 5).map((trans) => (
+              <div
+                key={trans.id}
+                className="flex justify-between items-center py-2 border-b last:border-0"
+              >
+                <div>
+                  <div className="font-medium">{trans.category}</div>
+                  <div className="text-xs text-zinc-500">
+                    {formatDate(trans.date)}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-          <Link
-            href="/business/transactions"
-            className="block mt-4 text-sm text-emerald-600 hover:text-emerald-700"
-          >
-            View All →
-          </Link>
-        </Card>
-      </div>
+                <div
+                  className={`font-semibold ${trans.type === "income" ? "text-emerald-600" : "text-red-600"}`}
+                >
+                  {trans.type === "income" ? "+" : "-"}
+                  {formatCurrency(trans.amount)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <Link
+          href="/business/transactions"
+          className="block mt-4 text-sm text-emerald-600 hover:text-emerald-700"
+        >
+          View All →
+        </Link>
+      </Card>
     </div>
   );
 }

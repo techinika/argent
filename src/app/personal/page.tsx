@@ -6,26 +6,34 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
+  doc,
   orderBy,
   limit,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings } from "@/hooks/useSettings";
 import {
   PersonalTransaction,
   PersonalGoal,
   PersonalSavings,
   Debt,
+  CurrentAccount,
+  PersonalBudgetItem,
 } from "@/types";
 import { Card } from "@/components/ui/Card";
 import Link from "next/link";
 
 export default function PersonalDashboard() {
   const { user } = useAuth();
+  const { formatCurrency } = useSettings();
   const [transactions, setTransactions] = useState<PersonalTransaction[]>([]);
   const [goals, setGoals] = useState<PersonalGoal[]>([]);
   const [savings, setSavings] = useState<PersonalSavings[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
+  const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(null);
+  const [budgetItems, setBudgetItems] = useState<PersonalBudgetItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -79,6 +87,27 @@ export default function PersonalDashboard() {
       setDebts(
         debtsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Debt[],
       );
+
+      const budgetItemsQuery = query(
+        collection(db, "personalBudgetItems"),
+        where("userId", "==", user.uid),
+      );
+      const budgetItemsSnap = await getDocs(budgetItemsQuery);
+      setBudgetItems(
+        budgetItemsSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })) as PersonalBudgetItem[],
+      );
+
+      const accountDoc = await getDoc(doc(db, "currentAccounts", user.uid));
+      if (accountDoc.exists()) {
+        setCurrentAccount({
+          id: accountDoc.id,
+          ...accountDoc.data(),
+          lastUpdated: accountDoc.data().lastUpdated?.toDate(),
+        } as CurrentAccount);
+      }
     } catch (err) {
       console.error("Error fetching data:", err);
     } finally {
@@ -115,6 +144,23 @@ export default function PersonalDashboard() {
         ? "insufficient"
         : "none";
 
+  const pendingGoals = goals.filter((g) => !g.completed);
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+  const pendingBudgetItems = budgetItems.filter(
+    (b) => b.month === currentMonth && b.year === currentYear && !b.completed,
+  );
+  const pendingGoalsTotal = pendingGoals.reduce(
+    (s, g) => s + (g.targetAmount - g.currentAmount),
+    0,
+  );
+  const pendingBudgetTotal = pendingBudgetItems.reduce(
+    (s, b) => s + b.estimatedCost,
+    0,
+  );
+  const amountNeededForPending = pendingGoalsTotal + pendingBudgetTotal + totalOwed;
+  const accountBalance = currentAccount?.balance ?? 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -137,13 +183,35 @@ export default function PersonalDashboard() {
         </Link>
       </div>
 
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card className="bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-200 dark:border-emerald-800">
+          <div className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+            Current Account Balance
+          </div>
+          <div className="text-4xl font-bold text-emerald-700 dark:text-emerald-300 mt-1">
+            {formatCurrency(accountBalance)}
+          </div>
+        </Card>
+        <Card className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800">
+          <div className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+            Amount Needed for Pending Items
+          </div>
+          <div className="text-4xl font-bold text-amber-700 dark:text-amber-300 mt-1">
+            {formatCurrency(amountNeededForPending)}
+          </div>
+          <div className="text-xs text-amber-500 mt-1">
+            {formatCurrency(pendingGoalsTotal)} goals + {formatCurrency(pendingBudgetTotal)} budget items + {formatCurrency(totalOwed)} debts
+          </div>
+        </Card>
+      </div>
+
       <div className="grid md:grid-cols-4 gap-4">
         <Card>
           <div className="text-sm text-zinc-500 dark:text-zinc-400">
             Total Income
           </div>
           <div className="text-2xl font-bold text-emerald-600">
-            ${totalIncome.toLocaleString()}
+            {formatCurrency(totalIncome)}
           </div>
         </Card>
         <Card>
@@ -151,7 +219,7 @@ export default function PersonalDashboard() {
             Total Expenses
           </div>
           <div className="text-2xl font-bold text-red-600">
-            ${totalExpenses.toLocaleString()}
+            {formatCurrency(totalExpenses)}
           </div>
         </Card>
         <Card>
@@ -161,7 +229,7 @@ export default function PersonalDashboard() {
           <div
             className={`text-2xl font-bold ${projectedSavings >= 0 ? "text-blue-600" : "text-red-600"}`}
           >
-            ${projectedSavings.toLocaleString()}
+            {formatCurrency(projectedSavings)}
           </div>
         </Card>
         <Card>
@@ -182,7 +250,7 @@ export default function PersonalDashboard() {
             <div className="flex justify-between">
               <span className="text-zinc-600 dark:text-zinc-400">You Owe</span>
               <span className="font-semibold text-red-600">
-                ${totalOwed.toLocaleString()}
+                {formatCurrency(totalOwed)}
               </span>
             </div>
             <div className="flex justify-between">
@@ -190,7 +258,7 @@ export default function PersonalDashboard() {
                 Owed to You
               </span>
               <span className="font-semibold text-emerald-600">
-                ${totalOwing.toLocaleString()}
+                {formatCurrency(totalOwing)}
               </span>
             </div>
             <div className="flex justify-between border-t pt-4">
@@ -198,7 +266,7 @@ export default function PersonalDashboard() {
               <span
                 className={`font-semibold ${totalOwing - totalOwed >= 0 ? "text-emerald-600" : "text-red-600"}`}
               >
-                ${(totalOwing - totalOwed).toLocaleString()}
+                {formatCurrency(totalOwing - totalOwed)}
               </span>
             </div>
           </div>
@@ -217,7 +285,7 @@ export default function PersonalDashboard() {
                 Total Savings
               </span>
               <span className="font-semibold text-blue-600">
-                ${totalSavings.toLocaleString()}
+                {formatCurrency(totalSavings)}
               </span>
             </div>
             <div className="flex justify-between">
@@ -225,7 +293,7 @@ export default function PersonalDashboard() {
                 Emergency Fund Target
               </span>
               <span className="font-semibold">
-                ${emergencyFundTarget.toLocaleString()}
+                {formatCurrency(emergencyFundTarget)}
               </span>
             </div>
             <div className="flex justify-between border-t pt-4">
@@ -304,8 +372,8 @@ export default function PersonalDashboard() {
                 <div
                   className={`font-semibold ${trans.type === "income" ? "text-emerald-600" : "text-red-600"}`}
                 >
-                  {trans.type === "income" ? "+" : "-"}$
-                  {trans.amount.toLocaleString()}
+                  {trans.type === "income" ? "+" : "-"}
+                  {formatCurrency(trans.amount)}
                 </div>
               </div>
             ))}

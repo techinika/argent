@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings } from "@/hooks/useSettings";
 import { personalBudgetItemSchema } from "@/lib/schemas";
 import {
   PersonalBudgetItem,
@@ -42,6 +43,7 @@ const categories: { value: PersonalTransactionCategory; label: string }[] = [
 export default function PersonalBudgetPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { formatCurrency } = useSettings();
   const [items, setItems] = useState<PersonalBudgetItem[]>([]);
   const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(
     null,
@@ -315,19 +317,19 @@ export default function PersonalBudgetPage() {
         <Card>
           <div className="text-sm text-zinc-500">Essential</div>
           <div className="text-2xl font-bold text-red-600">
-            ${essentialTotal.toLocaleString()}
+            {formatCurrency(essentialTotal)}
           </div>
         </Card>
         <Card>
           <div className="text-sm text-zinc-500">Non-Essential</div>
           <div className="text-2xl font-bold text-yellow-600">
-            ${nonEssentialTotal.toLocaleString()}
+            {formatCurrency(nonEssentialTotal)}
           </div>
         </Card>
         <Card>
           <div className="text-sm text-zinc-500">Total Planned</div>
           <div className="text-2xl font-bold">
-            ${totalPlanned.toLocaleString()}
+            {formatCurrency(totalPlanned)}
           </div>
         </Card>
       </div>
@@ -385,7 +387,7 @@ export default function PersonalBudgetPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">
-                          ${item.estimatedCost.toLocaleString()}
+                          {formatCurrency(item.estimatedCost)}
                         </span>
                         <button
                           type="button"
@@ -483,7 +485,7 @@ export default function PersonalBudgetPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">
-                          ${item.estimatedCost.toLocaleString()}
+                          {formatCurrency(item.estimatedCost)}
                         </span>
                         <button
                           type="button"

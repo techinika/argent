@@ -22,6 +22,7 @@ import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/context/ToastContext";
+import { useSettings } from "@/hooks/useSettings";
 
 const transactionTypes: { value: BusinessTransactionType; label: string }[] = [
   { value: "income", label: "Income" },
@@ -35,6 +36,7 @@ const transactionTypes: { value: BusinessTransactionType; label: string }[] = [
 export default function BusinessTransactionsPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { formatCurrency } = useSettings();
   const [transactions, setTransactions] = useState<BusinessTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -179,7 +181,7 @@ export default function BusinessTransactionsPage() {
             Total Income
           </div>
           <div className="text-2xl font-bold text-emerald-600">
-            ${totalIncome.toLocaleString()}
+            {formatCurrency(totalIncome)}
           </div>
         </Card>
         <Card>
@@ -187,7 +189,7 @@ export default function BusinessTransactionsPage() {
             Total Expenses
           </div>
           <div className="text-2xl font-bold text-red-600">
-            ${totalExpenses.toLocaleString()}
+            {formatCurrency(totalExpenses)}
           </div>
         </Card>
         <Card>
@@ -195,7 +197,7 @@ export default function BusinessTransactionsPage() {
           <div
             className={`text-2xl font-bold ${totalIncome - totalExpenses >= 0 ? "text-emerald-600" : "text-red-600"}`}
           >
-            ${(totalIncome - totalExpenses).toLocaleString()}
+            {formatCurrency(totalIncome - totalExpenses)}
           </div>
         </Card>
       </div>
@@ -268,8 +270,8 @@ export default function BusinessTransactionsPage() {
                           : "text-red-600"
                       }`}
                     >
-                      {trans.type === "income" ? "+" : "-"}$
-                      {trans.amount.toLocaleString()}
+                      {trans.type === "income" ? "+" : "-"}
+                      {formatCurrency(trans.amount)}
                     </td>
                     <td className="py-3 px-2 text-right">
                       <button

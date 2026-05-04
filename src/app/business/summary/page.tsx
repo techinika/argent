@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings } from "@/hooks/useSettings";
 import { BusinessTransaction, BusinessBudget } from "@/types";
 import { Card } from "@/components/ui/Card";
 
@@ -17,6 +18,7 @@ interface MonthlyData {
 
 export default function BusinessSummaryPage() {
   const { user } = useAuth();
+  const { formatCurrency } = useSettings();
   const [transactions, setTransactions] = useState<BusinessTransaction[]>([]);
   const [budgets, setBudgets] = useState<BusinessBudget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,7 +185,7 @@ export default function BusinessSummaryPage() {
             Total Budgeted
           </div>
           <div className="text-2xl font-bold">
-            ${totalBudgeted.toLocaleString()}
+            {formatCurrency(totalBudgeted)}
           </div>
         </Card>
         <Card>
@@ -191,7 +193,7 @@ export default function BusinessSummaryPage() {
             Total Income
           </div>
           <div className="text-2xl font-bold text-emerald-600">
-            ${totalIncome.toLocaleString()}
+            {formatCurrency(totalIncome)}
           </div>
         </Card>
         <Card>
@@ -199,7 +201,7 @@ export default function BusinessSummaryPage() {
             Total Expenses
           </div>
           <div className="text-2xl font-bold text-red-600">
-            ${totalExpenses.toLocaleString()}
+            {formatCurrency(totalExpenses)}
           </div>
         </Card>
         <Card>
@@ -209,7 +211,7 @@ export default function BusinessSummaryPage() {
           <div
             className={`text-2xl font-bold ${totalIncome - totalExpenses >= 0 ? "text-emerald-600" : "text-red-600"}`}
           >
-            ${(totalIncome - totalExpenses).toLocaleString()}
+            {formatCurrency(totalIncome - totalExpenses)}
           </div>
         </Card>
       </div>
@@ -235,21 +237,21 @@ export default function BusinessSummaryPage() {
                     <tr key={i} className="border-b last:border-0">
                       <td className="py-2">{months[i]}</td>
                       <td className="text-right text-emerald-600">
-                        ${data.income.toLocaleString()}
+                        {formatCurrency(data.income)}
                       </td>
                       <td className="text-right text-red-600">
-                        ${data.expenses.toLocaleString()}
+                        {formatCurrency(data.expenses)}
                       </td>
                       <td className="text-right text-blue-600">
-                        ${data.savings.toLocaleString()}
+                        {formatCurrency(data.savings)}
                       </td>
                       <td className="text-right text-purple-600">
-                        ${data.investments.toLocaleString()}
+                        {formatCurrency(data.investments)}
                       </td>
                       <td
                         className={`text-right font-semibold ${net >= 0 ? "text-emerald-600" : "text-red-600"}`}
                       >
-                        ${net.toLocaleString()}
+                        {formatCurrency(net)}
                       </td>
                     </tr>
                   );
@@ -259,21 +261,21 @@ export default function BusinessSummaryPage() {
                 <tr className="font-semibold">
                   <td className="py-2">Total</td>
                   <td className="text-right text-emerald-600">
-                    ${totalIncome.toLocaleString()}
+                    {formatCurrency(totalIncome)}
                   </td>
                   <td className="text-right text-red-600">
-                    ${totalExpenses.toLocaleString()}
+                    {formatCurrency(totalExpenses)}
                   </td>
                   <td className="text-right text-blue-600">
-                    ${totalSavings.toLocaleString()}
+                    {formatCurrency(totalSavings)}
                   </td>
                   <td className="text-right text-purple-600">
-                    ${totalInvestments.toLocaleString()}
+                    {formatCurrency(totalInvestments)}
                   </td>
                   <td
                     className={`text-right ${totalIncome - totalExpenses >= 0 ? "text-emerald-600" : "text-red-600"}`}
                   >
-                    ${(totalIncome - totalExpenses).toLocaleString()}
+                    {formatCurrency(totalIncome - totalExpenses)}
                   </td>
                 </tr>
               </tfoot>
@@ -298,8 +300,8 @@ export default function BusinessSummaryPage() {
                         {months[budget.month! - 1]} - {budget.category}
                       </span>
                       <span className={status.color}>
-                        {percentage.toFixed(0)}% (${actual.toLocaleString()}/$
-                        {budget.amount.toLocaleString()})
+                        {percentage.toFixed(0)}% ({formatCurrency(actual)}/
+                        {formatCurrency(budget.amount)})
                       </span>
                     </div>
                     <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
@@ -348,7 +350,7 @@ export default function BusinessSummaryPage() {
           <div>
             <h4 className="font-medium mb-2">Investment Activity</h4>
             <p className="text-3xl font-bold text-purple-600">
-              ${totalInvestments.toLocaleString()}
+              {formatCurrency(totalInvestments)}
             </p>
             <p className="text-sm text-zinc-500">
               {totalInvestments > 0 ? "Investing in growth" : "No investments"}

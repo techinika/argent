@@ -3,21 +3,42 @@
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { AdBannerBottom } from "@/components/ui/AdSense";
 import { useAdPreferences } from "@/context/AdPreferencesContext";
 
 export function HomeClient() {
-  const { user, loading } = useAuth();
+  const { user, loading, firebaseUser, signOut } = useAuth();
   const { showAds } = useAdPreferences();
   const router = useRouter();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (!loading && user) {
       router.push(user.role === "business" ? "/business" : "/personal");
     }
   }, [user, loading, router]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/auth/signin");
+  };
+
+  const avatarUrl =
+    firebaseUser?.photoURL ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || "User")}&background=059669&color=fff&bold=true`;
 
   if (loading) {
     return (
@@ -34,16 +55,70 @@ export function HomeClient() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <span className="text-2xl font-bold text-emerald-600">
-                Argent
+                ARGENT
               </span>
             </div>
             <div className="flex items-center gap-4">
-              <Link href="/auth/signin">
-                <Button variant="outline">Sign In</Button>
-              </Link>
-              <Link href="/auth/signup">
-                <Button>Get Started</Button>
-              </Link>
+              {!user ? (
+                <>
+                  <Link href="/auth/signin">
+                    <Button variant="outline">Sign In</Button>
+                  </Link>
+                  <Link href="/auth/signup">
+                    <Button>Get Started</Button>
+                  </Link>
+                </>
+              ) : (
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="flex items-center gap-3 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                    aria-label="User menu"
+                  >
+                    <img
+                      src={avatarUrl}
+                      alt={user.displayName}
+                      className="w-8 h-8 rounded-full object-cover border-2 border-emerald-500"
+                    />
+                  </button>
+
+                  {dropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden z-50">
+                      <div className="p-3 border-b border-zinc-200 dark:border-zinc-800">
+                        <p className="font-medium text-zinc-900 dark:text-white truncate">
+                          {user.displayName}
+                        </p>
+                        <p className="text-sm text-zinc-500 truncate">{user.email}</p>
+                      </div>
+                      <div className="p-2">
+                        <Link
+                          href="/personal"
+                          className="block px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg"
+                        >
+                          Go to Personal Dashboard
+                        </Link>
+                        {user.role === "business" && (
+                          <Link
+                            href="/business"
+                            className="block px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg"
+                          >
+                            Go to Business Dashboard
+                          </Link>
+                        )}
+                      </div>
+                      <div className="p-2 border-t border-zinc-200 dark:border-zinc-800">
+                        <Link
+                          href="/auth/signin"
+                          className="block px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                        >
+                          Sign Out
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

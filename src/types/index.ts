@@ -69,6 +69,21 @@ export interface PersonalGoal {
   deadline?: Date;
   priority: "high" | "medium" | "low";
   completed: boolean;
+  linkedSavingsId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface InstallmentPlan {
+  id: string;
+  userId: string;
+  linkedType: "goal" | "savings";
+  linkedId: string;
+  amount: number;
+  frequency: "monthly" | "weekly" | "biweekly";
+  nextDueDate: Date;
+  lastPaidDate?: Date;
+  active: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -96,8 +111,21 @@ export interface PersonalTransaction {
   description: string;
   date: Date;
   archived: boolean;
+  relatedMinorTransactionId?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface MinorTransaction {
+  id: string;
+  userId: string;
+  parentTransactionId: string;
+  parentType: "personal" | "business";
+  amount: number;
+  description: string;
+  category: string;
+  date: Date;
+  createdAt: Date;
 }
 
 export interface Debt {
@@ -119,6 +147,8 @@ export interface PersonalSavings {
   name: string;
   amount: number;
   targetAmount?: number;
+  linkedGoalId?: string;
+  purpose: "emergency" | "goal" | "planned_expense" | "investment" | "general";
   createdAt: Date;
   updatedAt: Date;
 }

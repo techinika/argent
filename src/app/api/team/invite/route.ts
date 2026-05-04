@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       businessId,
       email,
       role: role || "member",
-      invitedBy: businessId,
+      name: name || "",
       token,
       expiresAt,
       createdAt: new Date(),

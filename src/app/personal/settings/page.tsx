@@ -43,6 +43,9 @@ const currencies = [
   { value: "NGN", label: "NGN - Nigerian Naira" },
   { value: "KES", label: "KES - Kenyan Shilling" },
   { value: "INR", label: "INR - Indian Rupee" },
+  { value: "RWF", label: "RWF - Rwandan Franc" },
+  { value: "FBU", label: "FBU - Burundian Franc" },
+  { value: "UGX", label: "UGX - Ugandan Shilling" },
 ];
 
 const dateFormats = [
@@ -56,12 +59,11 @@ export default function PersonalSettingsPage() {
   const { user, firebaseUser } = useAuth();
   const { showToast } = useToast();
   const { showAds, setShowAds } = useAdPreferences();
-  const { theme, setTheme, resolvedTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<PersonalSettings>({
     displayName: "",
-    currency: "USD",
+    currency: "",
     dateFormat: "MM/DD/YYYY",
     emailNotifications: true,
     monthlyBudgetLimit: 0,
@@ -76,20 +78,36 @@ export default function PersonalSettingsPage() {
       const docRef = doc(db, "personalSettings", user.uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setSettings(docSnap.data() as PersonalSettings);
+        const data = docSnap.data();
+        setSettings({
+          displayName: data.displayName || "",
+          currency: data.currency || "USD",
+          dateFormat: data.dateFormat || "MM/DD/YYYY",
+          emailNotifications: data.emailNotifications ?? true,
+          monthlyBudgetLimit: data.monthlyBudgetLimit || 0,
+          emergencyFundTarget: data.emergencyFundTarget || 0,
+        });
       } else {
         setSettings((prev) => ({
           ...prev,
           displayName: user.displayName || "",
         }));
-        await setDoc(docRef, { ...settings, displayName: user.displayName });
+        await setDoc(docRef, { 
+          displayName: user.displayName,
+          currency: "USD",
+          dateFormat: "MM/DD/YYYY",
+          emailNotifications: true,
+          monthlyBudgetLimit: 0,
+          emergencyFundTarget: 0,
+          createdAt: new Date(),
+        });
       }
     } catch (err) {
       console.error("Error loading settings:", err);
     } finally {
       setLoading(false);
     }
-  }, [user, settings]);
+  }, [user]);
 
   useEffect(() => {
     loadSettings();
@@ -486,11 +504,11 @@ export default function PersonalSettingsPage() {
           <Input
             label="Monthly Budget Limit"
             type="number"
-            value={settings.monthlyBudgetLimit}
+            value={settings.monthlyBudgetLimit || undefined}
             onChange={(e) =>
               setSettings({
                 ...settings,
-                monthlyBudgetLimit: parseFloat(e.target.value) || 0,
+                monthlyBudgetLimit: e.target.value ? parseFloat(e.target.value) : 0,
               })
             }
             placeholder="0.00"
@@ -498,11 +516,11 @@ export default function PersonalSettingsPage() {
           <Input
             label="Emergency Fund Target"
             type="number"
-            value={settings.emergencyFundTarget}
+            value={settings.emergencyFundTarget || undefined}
             onChange={(e) =>
               setSettings({
                 ...settings,
-                emergencyFundTarget: parseFloat(e.target.value) || 0,
+                emergencyFundTarget: e.target.value ? parseFloat(e.target.value) : 0,
               })
             }
             placeholder="0.00"

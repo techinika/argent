@@ -94,24 +94,8 @@ export default function BusinessLayout({
               </svg>
             </button>
             <Link href="/business" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-              </div>
               <span className="text-xl font-bold text-emerald-600 hidden sm:block">
-                Argent
+                ARGENT
               </span>
             </Link>
           </div>

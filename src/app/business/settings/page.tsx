@@ -12,7 +12,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useTheme } from "@/components/ui/ThemeProvider";
@@ -68,12 +68,34 @@ const defaultFeatures: BusinessFeature[] = [
   },
 ];
 
+const currencies = [
+  { value: "USD", label: "USD - US Dollar" },
+  { value: "EUR", label: "EUR - Euro" },
+  { value: "GBP", label: "GBP - British Pound" },
+  { value: "CAD", label: "CAD - Canadian Dollar" },
+  { value: "AUD", label: "AUD - Australian Dollar" },
+  { value: "NGN", label: "NGN - Nigerian Naira" },
+  { value: "KES", label: "KES - Kenyan Shilling" },
+  { value: "INR", label: "INR - Indian Rupee" },
+  { value: "RWF", label: "RWF - Rwandan Franc" },
+  { value: "FBU", label: "FBU - Burundian Franc" },
+  { value: "UGX", label: "UGX - Ugandan Shilling" },
+];
+
+const dateFormats = [
+  { value: "MM/DD/YYYY", label: "MM/DD/YYYY" },
+  { value: "DD/MM/YYYY", label: "DD/MM/YYYY" },
+  { value: "YYYY-MM-DD", label: "YYYY-MM-DD" },
+];
+
 export default function BusinessSettingsPage() {
   const router = useRouter();
   const { user, firebaseUser } = useAuth();
   const { showToast } = useToast();
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const {  } = useTheme();
   const [businessName, setBusinessName] = useState("");
+  const [currency, setCurrency] = useState("RWF");
+  const [dateFormat, setDateFormat] = useState("MM/DD/YYYY");
   const [features, setFeatures] = useState<BusinessFeature[]>(defaultFeatures);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -89,11 +111,15 @@ export default function BusinessSettingsPage() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setBusinessName(data.name || "");
+        setCurrency(data.currency || "RWF");
+        setDateFormat(data.dateFormat || "MM/DD/YYYY");
         setFeatures(data.features || defaultFeatures);
       } else {
         setBusinessName(user.displayName || "");
         await setDoc(docRef, {
           name: user.displayName || "",
+          currency: "RWF",
+          dateFormat: "MM/DD/YYYY",
           features: defaultFeatures,
           createdAt: new Date(),
         });
@@ -118,6 +144,8 @@ export default function BusinessSettingsPage() {
         docRef,
         {
           name: businessName,
+          currency,
+          dateFormat,
           features,
           updatedAt: new Date(),
         },
@@ -188,7 +216,7 @@ export default function BusinessSettingsPage() {
         doc(db, "personalSettings", user.uid),
         {
           displayName: user.displayName,
-          currency: "USD",
+          currency: "RWF",
           dateFormat: "MM/DD/YYYY",
           emailNotifications: true,
           updatedAt: new Date(),
@@ -272,6 +300,46 @@ export default function BusinessSettingsPage() {
                 onChange={(e) => setBusinessName(e.target.value)}
                 placeholder="Your business name"
               />
+              <div>
+                <label
+                  htmlFor="currency-select"
+                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+                >
+                  Currency
+                </label>
+                <select
+                  id="currency-select"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800"
+                >
+                  {currencies.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label
+                  htmlFor="date-format-select"
+                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+                >
+                  Date Format
+                </label>
+                <select
+                  id="date-format-select"
+                  value={dateFormat}
+                  onChange={(e) => setDateFormat(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800"
+                >
+                  {dateFormats.map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <Button onClick={handleSave} loading={saving}>
                 {saved ? "Saved!" : "Save Changes"}
               </Button>

@@ -8,7 +8,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className = "", id, ...props }, ref) => {
+  ({ label, error, className = "", id, value, ...props }, ref) => {
     const generatedId = useId();
     const inputId = id || generatedId;
 
@@ -25,6 +25,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           id={inputId}
+          value={value ?? ""}
           className={`
             w-full px-4 py-2 rounded-lg border transition-colors
             ${
@@ -36,6 +37,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             focus:outline-none focus:ring-2 focus:ring-offset-0
             ${className}
           `}
+          onChange={(e) => {
+            if (props.onChange) {
+              props.onChange(e);
+            }
+          }}
           {...props}
         />
         {error && <p className="mt-1 text-sm text-red-500">{error}</p>}

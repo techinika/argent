@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings } from "@/hooks/useSettings";
 import { debtSchema } from "@/lib/schemas";
 import { Debt, CurrentAccount } from "@/types";
 import { Card } from "@/components/ui/Card";
@@ -30,6 +31,7 @@ import { useToast } from "@/context/ToastContext";
 export default function PersonalDebtsPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { formatCurrency } = useSettings();
   const [debts, setDebts] = useState<Debt[]>([]);
   const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(
     null,
@@ -248,13 +250,13 @@ export default function PersonalDebtsPage() {
         <Card>
           <div className="text-sm text-zinc-500">You Owe</div>
           <div className="text-2xl font-bold text-red-600">
-            ${owedTo.toLocaleString()}
+            {formatCurrency(owedTo)}
           </div>
         </Card>
         <Card>
           <div className="text-sm text-zinc-500">Owed to You</div>
           <div className="text-2xl font-bold text-emerald-600">
-            ${owedBy.toLocaleString()}
+            {formatCurrency(owedBy)}
           </div>
         </Card>
         <Card>
@@ -262,7 +264,7 @@ export default function PersonalDebtsPage() {
           <div
             className={`text-2xl font-bold ${owedBy - owedTo >= 0 ? "text-emerald-600" : "text-red-600"}`}
           >
-            ${(owedBy - owedTo).toLocaleString()}
+            {formatCurrency(owedBy - owedTo)}
           </div>
         </Card>
         <Card>
@@ -299,7 +301,7 @@ export default function PersonalDebtsPage() {
                       <span
                         className={`font-semibold ${debt.type === "owed_to" ? "text-red-600" : "text-emerald-600"}`}
                       >
-                        ${debt.amount.toLocaleString()}
+                        {formatCurrency(debt.amount)}
                       </span>
                       <button
                         type="button"
@@ -384,7 +386,7 @@ export default function PersonalDebtsPage() {
                     <div>
                       <div className="line-through">{debt.personName}</div>
                       <div className="text-xs">
-                        ${debt.amount.toLocaleString()}
+                        {formatCurrency(debt.amount)}
                       </div>
                     </div>
                     <button

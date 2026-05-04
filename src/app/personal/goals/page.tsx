@@ -13,8 +13,9 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings } from "@/hooks/useSettings";
 import { personalGoalSchema } from "@/lib/schemas";
-import { PersonalGoal } from "@/types";
+import { PersonalGoal, InstallmentPlan } from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -26,9 +27,14 @@ import { useToast } from "@/context/ToastContext";
 export default function PersonalGoalsPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { formatCurrency } = useSettings();
   const [goals, setGoals] = useState<PersonalGoal[]>([]);
+  const [installments, setInstallments] = useState<InstallmentPlan[]>([]);
+  const [savings, setSavings] = useState<{ id: string; name: string; amount: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [installmentModalOpen, setInstallmentModalOpen] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<PersonalGoal | null>(null);
   const [editingGoal, setEditingGoal] = useState<PersonalGoal | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -42,6 +48,11 @@ export default function PersonalGoalsPage() {
     targetAmount: "",
     priority: "medium",
     deadline: "",
+  });
+  const [installmentForm, setInstallmentForm] = useState({
+    amount: "",
+    savingsId: "",
+    frequency: "monthly" as "monthly" | "weekly" | "biweekly",
   });
   const [error, setError] = useState("");
 
@@ -58,6 +69,34 @@ export default function PersonalGoalsPage() {
         ...d.data(),
         deadline: d.data().deadline?.toDate(),
       })) as PersonalGoal[],
+    );
+
+    const savingsQuery = query(
+      collection(db, "personalSavings"),
+      where("userId", "==", user.uid),
+    );
+    const savingsSnap = await getDocs(savingsQuery);
+    setSavings(
+      savingsSnap.docs.map((d) => ({
+        id: d.id,
+        name: d.data().name,
+        amount: d.data().amount,
+      })),
+    );
+
+    const installmentQuery = query(
+      collection(db, "installmentPlans"),
+      where("userId", "==", user.uid),
+      where("linkedType", "==", "goal"),
+    );
+    const installmentSnap = await getDocs(installmentQuery);
+    setInstallments(
+      installmentSnap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        nextDueDate: d.data().nextDueDate?.toDate(),
+        lastPaidDate: d.data().lastPaidDate?.toDate(),
+      })) as InstallmentPlan[],
     );
     setLoading(false);
   }, [user]);
@@ -131,6 +170,74 @@ export default function PersonalGoalsPage() {
     showToast(goal.completed ? "Goal restored" : "Goal completed", "success");
   };
 
+  const handleSetupInstallment = (goal: PersonalGoal) => {
+    setSelectedGoal(goal);
+    const existing = installments.find((i) => i.linkedId === goal.id);
+    if (existing) {
+      setInstallmentForm({
+        amount: existing.amount.toString(),
+        savingsId: existing.linkedSavingsId || "",
+        frequency: existing.frequency,
+      });
+    } else {
+      setInstallmentForm({
+        amount: "",
+        savingsId: "",
+        frequency: "monthly",
+      });
+    }
+    setInstallmentModalOpen(true);
+  };
+
+  const handleSaveInstallment = async () => {
+    if (!selectedGoal) return;
+    setSaving(true);
+    try {
+      const amount = parseFloat(installmentForm.amount);
+      if (isNaN(amount) || amount <= 0) {
+        setError("Please enter a valid amount");
+        setSaving(false);
+        return;
+      }
+      const existing = installments.find((i) => i.linkedId === selectedGoal.id);
+      const nextDueDate = new Date();
+      nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+
+      if (existing) {
+        await updateDoc(doc(db, "installmentPlans", existing.id), {
+          amount,
+          linkedSavingsId: installmentForm.savingsId || undefined,
+          frequency: installmentForm.frequency,
+          nextDueDate,
+          updatedAt: new Date(),
+        });
+      } else {
+        await addDoc(collection(db, "installmentPlans"), {
+          userId: user!.uid,
+          linkedType: "goal",
+          linkedId: selectedGoal.id,
+          amount,
+          linkedSavingsId: installmentForm.savingsId || undefined,
+          frequency: installmentForm.frequency,
+          nextDueDate,
+          active: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      }
+      setInstallmentModalOpen(false);
+      setSelectedGoal(null);
+      fetchGoals();
+      showToast("Installment plan saved", "success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save installment");
+    } finally {
+      setSaving(false);
+    }
+  };
+    showToast(goal.completed ? "Goal restored" : "Goal completed", "success");
+  };
+
   const resetForm = () => {
     setFormData({
       name: "",
@@ -180,13 +287,13 @@ export default function PersonalGoalsPage() {
         <Card>
           <div className="text-sm text-zinc-500">Total Target</div>
           <div className="text-2xl font-bold text-emerald-600">
-            ${totalTarget.toLocaleString()}
+            {formatCurrency(totalTarget)}
           </div>
         </Card>
         <Card>
           <div className="text-sm text-zinc-500">Total Saved</div>
           <div className="text-2xl font-bold text-blue-600">
-            ${totalSaved.toLocaleString()}
+            {formatCurrency(totalSaved)}
           </div>
         </Card>
       </div>
@@ -213,11 +320,32 @@ export default function PersonalGoalsPage() {
                         <div>
                           <div className="font-medium">{goal.name}</div>
                           <div className="text-xs text-zinc-500">
-                            ${goal.currentAmount.toLocaleString()} / $
-                            {goal.targetAmount.toLocaleString()}
+                            {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
                           </div>
                         </div>
                         <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSetupInstallment(goal)}
+                            className="text-blue-400 hover:text-blue-600"
+                            aria-label="Setup Installment"
+                            title="Auto-save monthly"
+                          >
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              aria-hidden="true"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                              />
+                            </svg>
+                          </button>
                           <button
                             type="button"
                             onClick={() => openEdit(goal)}
@@ -291,6 +419,10 @@ export default function PersonalGoalsPage() {
                       </div>
                       <div className="flex justify-between text-xs text-zinc-500 mt-1">
                         <span>{progress.toFixed(0)}%</span>
+                        {installments.find((i) => i.linkedId === goal.id) && (
+                          <span className="text-blue-500">Auto: {formatCurrency(installments.find((i) => i.linkedId === goal.id)?.amount || 0)}/{installments.find((i) => i.linkedId === goal.id)?.frequency}</span>
+                        )}
+                      </div>
                         <span
                           className={
                             goal.priority === "high"
@@ -325,7 +457,7 @@ export default function PersonalGoalsPage() {
                         {goal.name}
                       </div>
                       <div className="text-xs text-emerald-500">
-                        ${goal.currentAmount.toLocaleString()}
+                        {formatCurrency(goal.currentAmount)}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -446,6 +578,63 @@ export default function PersonalGoalsPage() {
             </Button>
             <Button type="submit" className="flex-1" loading={saving}>
               {editingGoal ? "Update" : "Add"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      </Modal>
+
+      <Modal
+        isOpen={installmentModalOpen}
+        onClose={() => setInstallmentModalOpen(false)}
+        title={selectedGoal ? `Setup Auto-Save for ${selectedGoal.name}` : "Setup Auto-Save"}
+      >
+        <form onSubmit={handleSaveInstallment} className="space-y-4">
+          {error && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 text-sm">
+              {error}
+            </div>
+          )}
+          <Input
+            label="Monthly Allocation Amount"
+            type="number"
+            value={installmentForm.amount}
+            onChange={(e) => setInstallmentForm({ ...installmentForm, amount: e.target.value })}
+            placeholder="0.00"
+            min="0"
+            required
+          />
+          <Select
+            label="Save to Account (Optional)"
+            value={installmentForm.savingsId}
+            onChange={(e) => setInstallmentForm({ ...installmentForm, savingsId: e.target.value })}
+            options={[
+              { value: "", label: "Select a savings account" },
+              ...savings.map((s) => ({ value: s.id, label: `${s.name} (${formatCurrency(s.amount)})` })),
+            ]}
+          />
+          <Select
+            label="Frequency"
+            value={installmentForm.frequency}
+            onChange={(e) => setInstallmentForm({ ...installmentForm, frequency: e.target.value as "monthly" | "weekly" | "biweekly" })}
+            options={[
+              { value: "monthly", label: "Monthly" },
+              { value: "weekly", label: "Weekly" },
+              { value: "biweekly", label: "Bi-Weekly" },
+            ]}
+          />
+          <div className="flex gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => setInstallmentModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1" loading={saving}>
+              Save Installment
             </Button>
           </div>
         </form>

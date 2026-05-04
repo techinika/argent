@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "./ThemeToggle";
+import { doc, getDoc, getDocs, collection, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface UserMenuProps {
   sidebarOpen?: boolean;
@@ -13,6 +15,7 @@ export function UserMenu({ sidebarOpen = false }: UserMenuProps) {
   const { user, firebaseUser, signOut } = useAuth();
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [memberships, setMemberships] = useState<{ id: string; businessId: string; businessName: string; role: string }[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,9 +31,58 @@ export function UserMenu({ sidebarOpen = false }: UserMenuProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+
+    async function fetchMemberships() {
+      try {
+        const memberQuery = query(
+          collection(db, "teamMembers"),
+          where("userId", "==", user!.uid),
+        );
+        const memberSnap = await getDocs(memberQuery);
+
+        const membershipsData = await Promise.all(
+          memberSnap.docs.map(async (mDoc) => {
+            const data = mDoc.data();
+            const businessRef = doc(db, "businessSettings", data.businessId);
+            const businessSnap = await getDoc(businessRef);
+            const businessName = businessSnap.exists()
+              ? businessSnap.data().name
+              : "Unknown Business";
+
+            return {
+              id: mDoc.id,
+              businessId: data.businessId,
+              businessName,
+              role: data.role,
+            };
+          }),
+        );
+
+        setMemberships(membershipsData);
+      } catch (err) {
+        console.error("Error fetching memberships:", err);
+      }
+    }
+
+    fetchMemberships();
+  }, [user]);
+
   const handleSignOut = async () => {
     await signOut();
     router.push("/auth/signin");
+  };
+
+  const handleSwitchWorkspace = (workspace: string) => {
+    if (workspace === "personal") {
+      router.push("/personal");
+    } else if (workspace === "business") {
+      router.push("/business");
+    } else {
+      router.push(`/business/${workspace}`);
+    }
+    setDropdownOpen(false);
   };
 
   if (!user) return null;
@@ -76,7 +128,7 @@ export function UserMenu({ sidebarOpen = false }: UserMenuProps) {
       </button>
 
       {dropdownOpen && (
-        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden z-50">
+        <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden z-50">
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-3">
               <img
@@ -90,6 +142,81 @@ export function UserMenu({ sidebarOpen = false }: UserMenuProps) {
                 </p>
                 <p className="text-sm text-zinc-500 truncate">{user.email}</p>
               </div>
+            </div>
+          </div>
+
+          <div className="p-2 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="px-3 py-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">
+              Workspaces
+            </div>
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => handleSwitchWorkspace("personal")}
+                className="w-full flex items-center gap-3 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                <svg
+                  className="w-4 h-4 text-emerald-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                  />
+                </svg>
+                Personal
+              </button>
+
+              {user.role === "business" && (
+                <button
+                  type="button"
+                  onClick={() => handleSwitchWorkspace("business")}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                >
+                  <svg
+                    className="w-4 h-4 text-emerald-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
+                  </svg>
+                  Business
+                </button>
+              )}
+
+              {memberships.map((membership) => (
+                <button
+                  key={membership.id}
+                  type="button"
+                  onClick={() => handleSwitchWorkspace(membership.businessId)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                >
+                  <svg
+                    className="w-4 h-4 text-emerald-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
+                  </svg>
+                  {membership.businessName}
+                </button>
+              ))}
             </div>
           </div>
 

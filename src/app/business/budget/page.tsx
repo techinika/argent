@@ -23,10 +23,12 @@ import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/context/ToastContext";
+import { useSettings } from "@/hooks/useSettings";
 
 export default function BusinessBudgetPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { formatCurrency } = useSettings();
   const [budgets, setBudgets] = useState<BusinessBudget[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -206,7 +208,7 @@ export default function BusinessBudgetPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">
-                        ${budget.amount.toLocaleString()}
+                        {formatCurrency(budget.amount)}
                       </span>
                       <button
                         type="button"
@@ -259,10 +261,9 @@ export default function BusinessBudgetPage() {
               <div className="flex justify-between font-semibold">
                 <span>Total Monthly</span>
                 <span>
-                  $
-                  {(
-                    monthlyBudgets.reduce((s, b) => s + b.amount, 0) * 12
-                  ).toLocaleString()}
+                  {formatCurrency(
+                    monthlyBudgets.reduce((s, b) => s + b.amount, 0) * 12,
+                  )}
                   /yr
                 </span>
               </div>
@@ -287,7 +288,7 @@ export default function BusinessBudgetPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-red-600">
-                        ${budget.amount.toLocaleString()}
+                        {formatCurrency(budget.amount)}
                       </span>
                       <button
                         type="button"
@@ -340,10 +341,9 @@ export default function BusinessBudgetPage() {
               <div className="flex justify-between font-semibold">
                 <span>Total</span>
                 <span className="text-red-600">
-                  $
-                  {oneTimeExpenses
-                    .reduce((s, b) => s + b.amount, 0)
-                    .toLocaleString()}
+                  {formatCurrency(
+                    oneTimeExpenses.reduce((s, b) => s + b.amount, 0),
+                  )}
                 </span>
               </div>
             </div>
@@ -367,7 +367,7 @@ export default function BusinessBudgetPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-emerald-600">
-                        ${budget.amount.toLocaleString()}
+                        {formatCurrency(budget.amount)}
                       </span>
                       <button
                         type="button"
@@ -420,10 +420,9 @@ export default function BusinessBudgetPage() {
               <div className="flex justify-between font-semibold">
                 <span>Total</span>
                 <span className="text-emerald-600">
-                  $
-                  {oneTimeIncome
-                    .reduce((s, b) => s + b.amount, 0)
-                    .toLocaleString()}
+                  {formatCurrency(
+                    oneTimeIncome.reduce((s, b) => s + b.amount, 0),
+                  )}
                 </span>
               </div>
             </div>

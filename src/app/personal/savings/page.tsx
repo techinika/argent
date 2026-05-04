@@ -1,32 +1,32 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import {
   collection,
   query,
   where,
   getDocs,
-  updateDoc,
   deleteDoc,
   doc,
   getDoc,
   runTransaction,
-  setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings } from "@/hooks/useSettings";
 import { savingsSchema } from "@/lib/schemas";
-import { PersonalSavings, CurrentAccount } from "@/types";
+import type { PersonalSavings, CurrentAccount } from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/context/ToastContext";
+import { useEffect, useState, useCallback } from "react";
 
 export default function PersonalSavingsPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { formatCurrency } = useSettings();
   const [savings, setSavings] = useState<PersonalSavings[]>([]);
   const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(
     null,
@@ -37,13 +37,18 @@ export default function PersonalSavingsPage() {
     null,
   );
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    amount: "",
-    targetAmount: "",
-  });
-  const [error, setError] = useState("");
+const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [depositModalOpen, setDepositModalOpen] = useState(false);
+    const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+    const [selectedSavings, setSelectedSavings] = useState<PersonalSavings | null>(null);
+    const [depositAmount, setDepositAmount] = useState("");
+    const [withdrawAmount, setWithdrawAmount] = useState("");
+    const [formData, setFormData] = useState({
+      name: "",
+      amount: "",
+      targetAmount: "",
+    });
+    const [error, setError] = useState("");
 
   const fetchSavings = useCallback(async () => {
     if (!user) return;
@@ -75,14 +80,14 @@ export default function PersonalSavingsPage() {
     e.preventDefault();
     setError("");
     const amount = parseFloat(formData.amount);
-    if (isNaN(amount) || amount <= 0) {
+    if (Number.isNaN(amount) || amount <= 0) {
       setError("Please enter a valid amount");
       return;
     }
 
     if (currentAccount && amount > currentAccount.balance) {
       setError(
-        `Insufficient balance. Your current balance is $${currentAccount.balance.toFixed(2)}`,
+        `Insufficient balance. Your current balance is ${formatCurrency(currentAccount.balance)}`,
       );
       return;
     }
@@ -104,7 +109,7 @@ export default function PersonalSavingsPage() {
       }
 
       await runTransaction(db, async (transaction) => {
-        const accountRef = doc(db, "currentAccounts", user!.uid);
+        const accountRef = doc(db, "currentAccounts", user?.uid || "");
         const accountDoc = await transaction.get(accountRef);
 
         if (!accountDoc.exists()) {
@@ -131,7 +136,7 @@ export default function PersonalSavingsPage() {
           });
         } else {
           transaction.set(doc(collection(db, "personalSavings")), {
-            userId: user!.uid,
+            userId: user?.uid || "",
             name: formData.name,
             amount,
             targetAmount: formData.targetAmount
@@ -159,6 +164,96 @@ export default function PersonalSavingsPage() {
     setDeleteId(null);
     fetchSavings();
     showToast("Savings deleted", "success");
+  };
+
+  const handleDeposit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    const amount = parseFloat(depositAmount);
+    if (Number.isNaN(amount) || amount <= 0) {
+      setError("Please enter a valid amount");
+      return;
+    }
+    if (currentAccount && amount > currentAccount.balance) {
+      setError(
+        `Insufficient balance. Your current balance is ${formatCurrency(currentAccount.balance)}`,
+      );
+      return;
+    }
+    setSaving(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const accountRef = doc(db, "currentAccounts", user?.uid || "");
+        const accountDoc = await transaction.get(accountRef);
+        if (!accountDoc.exists()) throw new Error("Account not found");
+        const accountData = accountDoc.data() as CurrentAccount;
+        transaction.update(accountRef, {
+          balance: accountData.balance - amount,
+          totalSavings: accountData.totalSavings + amount,
+          lastUpdated: new Date(),
+        });
+        if (selectedSavings) {
+          transaction.update(doc(db, "personalSavings", selectedSavings.id), {
+            amount: selectedSavings.amount + amount,
+            updatedAt: new Date(),
+          });
+        }
+      });
+      setDepositModalOpen(false);
+      setDepositAmount("");
+      setSelectedSavings(null);
+      fetchSavings();
+      showToast("Deposit successful", "success");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to deposit");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleWithdraw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    const amount = parseFloat(withdrawAmount);
+    if (Number.isNaN(amount) || amount <= 0) {
+      setError("Please enter a valid amount");
+      return;
+    }
+    if (selectedSavings && amount > selectedSavings.amount) {
+      setError(
+        `Insufficient savings. Available: ${formatCurrency(selectedSavings.amount)}`,
+      );
+      return;
+    }
+    setSaving(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const accountRef = doc(db, "currentAccounts", user?.uid || "");
+        const accountDoc = await transaction.get(accountRef);
+        if (!accountDoc.exists()) throw new Error("Account not found");
+        const accountData = accountDoc.data() as CurrentAccount;
+        transaction.update(accountRef, {
+          balance: accountData.balance + amount,
+          totalSavings: accountData.totalSavings - amount,
+          lastUpdated: new Date(),
+        });
+        if (selectedSavings) {
+          transaction.update(doc(db, "personalSavings", selectedSavings.id), {
+            amount: selectedSavings.amount - amount,
+            updatedAt: new Date(),
+          });
+        }
+      });
+      setWithdrawModalOpen(false);
+      setWithdrawAmount("");
+      setSelectedSavings(null);
+      fetchSavings();
+      showToast("Withdrawal successful", "success");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to withdraw");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const resetForm = () => {
@@ -201,13 +296,13 @@ export default function PersonalSavingsPage() {
         <Card>
           <div className="text-sm text-zinc-500">Total Savings</div>
           <div className="text-2xl font-bold text-blue-600">
-            ${totalSavings.toLocaleString()}
+            {formatCurrency(totalSavings)}
           </div>
         </Card>
         <Card>
           <div className="text-sm text-zinc-500">Total Target</div>
           <div className="text-2xl font-bold">
-            ${totalTarget.toLocaleString()}
+            {formatCurrency(totalTarget)}
           </div>
         </Card>
         <Card>
@@ -236,12 +331,36 @@ export default function PersonalSavingsPage() {
                       <div>
                         <div className="font-medium">{s.name}</div>
                         <div className="text-sm text-zinc-500">
-                          ${s.amount.toLocaleString()}{" "}
+                          {formatCurrency(s.amount)}
                           {s.targetAmount &&
-                            `/ ${s.targetAmount.toLocaleString()}`}
+                            ` / ${formatCurrency(s.targetAmount)}`}
                         </div>
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSavings(s);
+                            setDepositAmount("");
+                            setDepositModalOpen(true);
+                          }}
+                          className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
+                          aria-label="Deposit"
+                        >
+                          Deposit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSavings(s);
+                            setWithdrawAmount("");
+                            setWithdrawModalOpen(true);
+                          }}
+                          className="text-amber-600 hover:text-amber-700 text-sm font-medium"
+                          aria-label="Withdraw"
+                        >
+                          Withdraw
+                        </button>
                         <button
                           type="button"
                           onClick={() => openEdit(s)}
@@ -336,7 +455,7 @@ export default function PersonalSavingsPage() {
           />
           {currentAccount && (
             <p className="text-xs text-zinc-500">
-              Available balance: ${currentAccount.balance.toFixed(2)}
+              Available balance: {formatCurrency(currentAccount.balance)}
             </p>
           )}
           <Input
@@ -377,6 +496,104 @@ export default function PersonalSavingsPage() {
         confirmText="Delete"
         confirmVariant="danger"
       />
+
+      <Modal
+        isOpen={depositModalOpen}
+        onClose={() => {
+          setDepositModalOpen(false);
+          setSelectedSavings(null);
+          setDepositAmount("");
+        }}
+        title={`Deposit to ${selectedSavings?.name || "Savings"}`}
+      >
+        <form onSubmit={handleDeposit} className="space-y-4">
+          {error && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 text-sm">
+              {error}
+            </div>
+          )}
+          <Input
+            label="Deposit Amount"
+            type="number"
+            value={depositAmount}
+            onChange={(e) => setDepositAmount(e.target.value)}
+            placeholder="0.00"
+            min="0"
+            step="0.01"
+            required
+          />
+          {currentAccount && (
+            <p className="text-xs text-zinc-500">
+              Available balance: {formatCurrency(currentAccount.balance)}
+            </p>
+          )}
+          <div className="flex gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setDepositModalOpen(false);
+                setSelectedSavings(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1" loading={saving}>
+              Deposit
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={withdrawModalOpen}
+        onClose={() => {
+          setWithdrawModalOpen(false);
+          setSelectedSavings(null);
+          setWithdrawAmount("");
+        }}
+        title={`Withdraw from ${selectedSavings?.name || "Savings"}`}
+      >
+        <form onSubmit={handleWithdraw} className="space-y-4">
+          {error && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 text-sm">
+              {error}
+            </div>
+          )}
+          <Input
+            label="Withdrawal Amount"
+            type="number"
+            value={withdrawAmount}
+            onChange={(e) => setWithdrawAmount(e.target.value)}
+            placeholder="0.00"
+            min="0"
+            step="0.01"
+            required
+          />
+          {selectedSavings && (
+            <p className="text-xs text-zinc-500">
+              Available in savings: {formatCurrency(selectedSavings.amount)}
+            </p>
+          )}
+          <div className="flex gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setWithdrawModalOpen(false);
+                setSelectedSavings(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1" loading={saving}>
+              Withdraw
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

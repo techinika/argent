@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings } from "@/hooks/useSettings";
 import { personalTransactionSchema } from "@/lib/schemas";
 import {
   PersonalTransaction,
@@ -43,6 +44,7 @@ const categories: { value: PersonalTransactionCategory; label: string }[] = [
 export default function PersonalTransactionsPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { formatCurrency } = useSettings();
   const [transactions, setTransactions] = useState<PersonalTransaction[]>([]);
   const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(
     null,
@@ -121,7 +123,7 @@ export default function PersonalTransactionsPage() {
     setError("");
     const amount = parseFloat(formData.amount);
 
-    if (isNaN(amount) || amount <= 0) {
+    if (Number.isNaN(amount) || amount <= 0) {
       setError("Please enter a valid amount");
       return;
     }
@@ -132,7 +134,7 @@ export default function PersonalTransactionsPage() {
       amount > currentAccount.balance
     ) {
       setError(
-        `Insufficient balance. Your current balance is $${currentAccount.balance.toFixed(2)}`,
+        `Insufficient balance. Your current balance is ${formatCurrency(currentAccount.balance)}`,
       );
       return;
     }
@@ -151,7 +153,7 @@ export default function PersonalTransactionsPage() {
       }
 
       await runTransaction(db, async (transaction) => {
-        const accountRef = doc(db, "currentAccounts", user!.uid);
+        const accountRef = doc(db, "currentAccounts", user?.uid || "");
         const accountDoc = await transaction.get(accountRef);
 
         if (!accountDoc.exists()) {
@@ -182,7 +184,7 @@ export default function PersonalTransactionsPage() {
         });
 
         transaction.set(doc(collection(db, "personalTransactions")), {
-          userId: user!.uid,
+          userId: user?.uid || "",
           type: formData.type,
           amount,
           category: formData.category,
@@ -275,7 +277,7 @@ export default function PersonalTransactionsPage() {
           <div
             className={`text-2xl font-bold ${(currentAccount?.balance || 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}
           >
-            ${(currentAccount?.balance || 0).toLocaleString()}
+            {formatCurrency(currentAccount?.balance || 0)}
           </div>
         </Card>
         <Card>
@@ -283,7 +285,7 @@ export default function PersonalTransactionsPage() {
             Total Income
           </div>
           <div className="text-2xl font-bold text-emerald-600">
-            ${totalIncome.toLocaleString()}
+            {formatCurrency(totalIncome)}
           </div>
         </Card>
         <Card>
@@ -291,16 +293,17 @@ export default function PersonalTransactionsPage() {
             Total Expenses
           </div>
           <div className="text-2xl font-bold text-red-600">
-            ${totalExpenses.toLocaleString()}
+            {formatCurrency(totalExpenses)}
           </div>
         </Card>
         <Card>
           <div className="text-sm text-zinc-500 dark:text-zinc-400">Net</div>
-          <div
-            className={`text-2xl font-bold ${totalIncome - totalExpenses >= 0 ? "text-emerald-600" : "text-red-600"}`}
-          >
-            ${(totalIncome - totalExpenses).toLocaleString()}
-          </div>
+<div
+                        className={`font-semibold ${trans.type === "income" ? "text-emerald-600" : "text-red-600"}`}
+                      >
+                        {trans.type === "income" ? "+" : "-"}
+                        {formatCurrency(trans.amount)}
+                      </div>
         </Card>
       </div>
 
@@ -318,9 +321,9 @@ export default function PersonalTransactionsPage() {
                   className="flex justify-between items-center py-2 border-b last:border-0"
                 >
                   <span>{cat.label}</span>
-                  <span className="font-semibold text-red-600">
-                    ${cat.amount.toLocaleString()}
-                  </span>
+<span className="font-semibold text-red-600">
+                     {formatCurrency(cat.amount)}
+                   </span>
                 </div>
               ))}
             </div>
@@ -418,7 +421,7 @@ export default function PersonalTransactionsPage() {
           />
           {formData.type === "expense" && currentAccount && (
             <p className="text-xs text-zinc-500">
-              Available balance: ${currentAccount.balance.toFixed(2)}
+              Available balance: {formatCurrency(currentAccount.balance)}
             </p>
           )}
           <Select
