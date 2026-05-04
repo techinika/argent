@@ -96,17 +96,20 @@ export default function BusinessBudgetPage() {
     }
 
     try {
-      const budgetData = {
+      const budgetData: Record<string, unknown> = {
         userId: user!.uid,
         type: formData.type,
         amount: formData.amount,
         category: formData.category,
         description: formData.description || "",
-        month: formData.type === "monthly" ? formData.month : undefined,
-        year: formData.year,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+
+      if (formData.type === "monthly") {
+        budgetData.month = formData.month;
+      }
+      budgetData.year = formData.year;
 
       if (editingBudget) {
         await updateDoc(doc(db, "businessBudgets", editingBudget.id), {
