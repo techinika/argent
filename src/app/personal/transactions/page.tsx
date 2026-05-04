@@ -23,6 +23,8 @@ import {
   PersonalTransaction,
   PersonalTransactionCategory,
   CurrentAccount,
+  PersonalGoal,
+  PersonalSavings,
 } from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -46,6 +48,8 @@ export default function PersonalTransactionsPage() {
   const { showToast } = useToast();
   const { formatCurrency } = useSettings();
   const [transactions, setTransactions] = useState<PersonalTransaction[]>([]);
+  const [goals, setGoals] = useState<PersonalGoal[]>([]);
+  const [savings, setSavings] = useState<PersonalSavings[]>([]);
   const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(
     null,
   );
@@ -59,12 +63,16 @@ export default function PersonalTransactionsPage() {
     category: PersonalTransactionCategory;
     description: string;
     date: Date;
+    linkedGoalId: string;
+    linkedSavingsId: string;
   }>({
     type: "expense",
     amount: "",
     category: "needs",
     description: "",
     date: new Date(),
+    linkedGoalId: "",
+    linkedSavingsId: "",
   });
   const [error, setError] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -84,6 +92,24 @@ export default function PersonalTransactionsPage() {
           ...d.data(),
           date: d.data().date.toDate(),
         })) as PersonalTransaction[],
+      );
+
+      const goalsQ = query(
+        collection(db, "personalGoals"),
+        where("userId", "==", user.uid),
+      );
+      const goalsSnap = await getDocs(goalsQ);
+      setGoals(
+        goalsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as PersonalGoal[],
+      );
+
+      const savingsQ = query(
+        collection(db, "personalSavings"),
+        where("userId", "==", user.uid),
+      );
+      const savingsSnap = await getDocs(savingsQ);
+      setSavings(
+        savingsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as PersonalSavings[],
       );
 
       const accountDoc = await getDoc(doc(db, "currentAccounts", user.uid));
@@ -183,7 +209,7 @@ export default function PersonalTransactionsPage() {
           lastUpdated: new Date(),
         });
 
-        transaction.set(doc(collection(db, "personalTransactions")), {
+        const transData: Record<string, unknown> = {
           userId: user?.uid || "",
           type: formData.type,
           amount,
@@ -192,7 +218,35 @@ export default function PersonalTransactionsPage() {
           date: formData.date,
           createdAt: new Date(),
           updatedAt: new Date(),
-        });
+        };
+
+        if (formData.linkedGoalId) {
+          transData.linkedGoalId = formData.linkedGoalId;
+          const goalRef = doc(db, "personalGoals", formData.linkedGoalId);
+          const goalDoc = await transaction.get(goalRef);
+          if (goalDoc.exists()) {
+            const goalData = goalDoc.data();
+            transaction.update(goalRef, {
+              currentAmount: (goalData.currentAmount || 0) + amount,
+              updatedAt: new Date(),
+            });
+          }
+        }
+
+        if (formData.linkedSavingsId) {
+          transData.linkedSavingsId = formData.linkedSavingsId;
+          const savingsRef = doc(db, "personalSavings", formData.linkedSavingsId);
+          const savingsDoc = await transaction.get(savingsRef);
+          if (savingsDoc.exists()) {
+            const savingsData = savingsDoc.data();
+            transaction.update(savingsRef, {
+              amount: (savingsData.amount || 0) + amount,
+              updatedAt: new Date(),
+            });
+          }
+        }
+
+        transaction.set(doc(collection(db, "personalTransactions")), transData);
       });
 
       setModalOpen(false);
@@ -222,6 +276,8 @@ export default function PersonalTransactionsPage() {
       category: "needs",
       description: "",
       date: new Date(),
+      linkedGoalId: "",
+      linkedSavingsId: "",
     });
 
   const filtered =
@@ -442,6 +498,44 @@ export default function PersonalTransactionsPage() {
             }
             placeholder="Optional"
           />
+          {formData.type === "expense" && goals.filter(g => !g.completed).length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Link to Goal (Optional)
+              </label>
+              <select
+                value={formData.linkedGoalId}
+                onChange={(e) => setFormData({ ...formData, linkedGoalId: e.target.value, linkedSavingsId: "" })}
+                className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800"
+              >
+                <option value="">No goal linked</option>
+                {goals.filter(g => !g.completed).map((goal) => (
+                  <option key={goal.id} value={goal.id}>
+                    {goal.name} ({formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {formData.type === "expense" && savings.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Link to Savings (Optional)
+              </label>
+              <select
+                value={formData.linkedSavingsId}
+                onChange={(e) => setFormData({ ...formData, linkedSavingsId: e.target.value, linkedGoalId: "" })}
+                className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800"
+              >
+                <option value="">No savings linked</option>
+                {savings.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({formatCurrency(s.amount)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <Input
             label="Date"
             type="date"

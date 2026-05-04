@@ -113,6 +113,8 @@ export interface PersonalTransaction {
   date: Date;
   archived: boolean;
   relatedMinorTransactionId?: string;
+  linkedGoalId?: string;
+  linkedSavingsId?: string;
   createdAt: Date;
   updatedAt: Date;
 }

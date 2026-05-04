@@ -14,7 +14,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
 import { savingsSchema } from "@/lib/schemas";
-import type { PersonalSavings, CurrentAccount } from "@/types";
+import type { PersonalSavings, CurrentAccount, PersonalGoal } from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -28,6 +28,7 @@ export default function PersonalSavingsPage() {
   const { showToast } = useToast();
   const { formatCurrency } = useSettings();
   const [savings, setSavings] = useState<PersonalSavings[]>([]);
+  const [goals, setGoals] = useState<PersonalGoal[]>([]);
   const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(
     null,
   );
@@ -47,6 +48,7 @@ const [deleteId, setDeleteId] = useState<string | null>(null);
       name: "",
       amount: "",
       targetAmount: "",
+      linkedGoalId: "",
     });
     const [error, setError] = useState("");
 
@@ -59,6 +61,15 @@ const [deleteId, setDeleteId] = useState<string | null>(null);
     const snap = await getDocs(q);
     setSavings(
       snap.docs.map((d) => ({ id: d.id, ...d.data() })) as PersonalSavings[],
+    );
+
+    const goalsQ = query(
+      collection(db, "personalGoals"),
+      where("userId", "==", user.uid),
+    );
+    const goalsSnap = await getDocs(goalsQ);
+    setGoals(
+      goalsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as PersonalGoal[],
     );
 
     const accountDoc = await getDoc(doc(db, "currentAccounts", user.uid));
@@ -132,6 +143,7 @@ const [deleteId, setDeleteId] = useState<string | null>(null);
             targetAmount: formData.targetAmount
               ? parseFloat(formData.targetAmount)
               : undefined,
+            linkedGoalId: formData.linkedGoalId || undefined,
             updatedAt: new Date(),
           });
         } else {
@@ -142,6 +154,7 @@ const [deleteId, setDeleteId] = useState<string | null>(null);
             targetAmount: formData.targetAmount
               ? parseFloat(formData.targetAmount)
               : undefined,
+            linkedGoalId: formData.linkedGoalId || undefined,
             createdAt: new Date(),
             updatedAt: new Date(),
           });
@@ -197,6 +210,17 @@ const [deleteId, setDeleteId] = useState<string | null>(null);
             amount: selectedSavings.amount + amount,
             updatedAt: new Date(),
           });
+          if (selectedSavings.linkedGoalId) {
+            const goalRef = doc(db, "personalGoals", selectedSavings.linkedGoalId);
+            const goalDoc = await transaction.get(goalRef);
+            if (goalDoc.exists()) {
+              const goalData = goalDoc.data();
+              transaction.update(goalRef, {
+                currentAmount: (goalData.currentAmount || 0) + amount,
+                updatedAt: new Date(),
+              });
+            }
+          }
         }
       });
       setDepositModalOpen(false);
@@ -257,7 +281,7 @@ const [deleteId, setDeleteId] = useState<string | null>(null);
   };
 
   const resetForm = () => {
-    setFormData({ name: "", amount: "", targetAmount: "" });
+    setFormData({ name: "", amount: "", targetAmount: "", linkedGoalId: "" });
     setEditingSavings(null);
   };
   const openEdit = (s: PersonalSavings) => {
@@ -266,6 +290,7 @@ const [deleteId, setDeleteId] = useState<string | null>(null);
       name: s.name,
       amount: s.amount.toString(),
       targetAmount: s.targetAmount?.toString() || "",
+      linkedGoalId: s.linkedGoalId || "",
     });
     setModalOpen(true);
   };
@@ -471,6 +496,29 @@ const [deleteId, setDeleteId] = useState<string | null>(null);
             placeholder="0.00"
             min="0"
           />
+          {goals.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Link to Goal (Optional)
+              </label>
+              <select
+                value={formData.linkedGoalId}
+                onChange={(e) =>
+                  setFormData({ ...formData, linkedGoalId: e.target.value })
+                }
+                className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800"
+              >
+                <option value="">No goal linked</option>
+                {goals
+                  .filter((g) => !g.completed)
+                  .map((goal) => (
+                    <option key={goal.id} value={goal.id}>
+                      {goal.name} ({formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
           <div className="flex gap-3 pt-4">
             <Button
               type="button"
