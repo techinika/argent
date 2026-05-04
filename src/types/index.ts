@@ -96,8 +96,8 @@ export interface PersonalBudgetItem {
   estimatedCost: number;
   category: PersonalTransactionCategory;
   isEssential: boolean;
-  month: number;
-  year: number;
+  month?: number;
+  year?: number;
   completed: boolean;
   createdAt: Date;
   updatedAt: Date;

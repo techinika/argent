@@ -63,6 +63,7 @@ export default function PersonalBudgetPage() {
     isEssential: false,
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
+    hasMonth: true,
   });
   const [error, setError] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -110,8 +111,8 @@ export default function PersonalBudgetPage() {
         estimatedCost: formData.estimatedCost,
         category: formData.category,
         isEssential: formData.isEssential,
-        month: formData.month,
-        year: formData.year,
+        month: formData.hasMonth ? formData.month : undefined,
+        year: formData.hasMonth ? formData.year : undefined,
         completed: editingItem?.completed || false,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -231,6 +232,7 @@ export default function PersonalBudgetPage() {
       isEssential: false,
       month: selectedMonth,
       year: selectedYear,
+      hasMonth: true,
     });
     setEditingItem(null);
   };
@@ -241,14 +243,18 @@ export default function PersonalBudgetPage() {
       estimatedCost: item.estimatedCost,
       category: item.category,
       isEssential: item.isEssential,
-      month: item.month,
-      year: item.year,
+      month: item.month || new Date().getMonth() + 1,
+      year: item.year || new Date().getFullYear(),
+      hasMonth: item.month !== undefined && item.year !== undefined,
     });
     setModalOpen(true);
   };
 
   const monthItems = items.filter(
     (i) => i.month === selectedMonth && i.year === selectedYear,
+  );
+  const unassignedItems = items.filter(
+    (i) => i.month === undefined || i.year === undefined,
   );
   const essentialTotal = monthItems
     .filter((i) => i.isEssential)
@@ -257,6 +263,10 @@ export default function PersonalBudgetPage() {
     .filter((i) => !i.isEssential)
     .reduce((s, i) => s + i.estimatedCost, 0);
   const totalPlanned = essentialTotal + nonEssentialTotal;
+  const unassignedTotal = unassignedItems.reduce(
+    (s, i) => s + i.estimatedCost,
+    0,
+  );
 
   const months = [
     "January",
@@ -333,6 +343,116 @@ export default function PersonalBudgetPage() {
           </div>
         </Card>
       </div>
+
+      {unassignedItems.length > 0 && (
+        <Card title="Unassigned Items - Not in pending spending">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-zinc-500">
+              Total: {formatCurrency(unassignedTotal)}
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                resetForm();
+                setModalOpen(true);
+              }}
+            >
+              + Add Unassigned
+            </Button>
+          </div>
+          {unassignedItems.length === 0 ? (
+            <p className="text-zinc-500">No unassigned items</p>
+          ) : (
+            <div className="space-y-3">
+              {unassignedItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex justify-between items-center py-2 border-b last:border-0"
+                >
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleComplete(item)}
+                      className={`w-4 h-4 rounded border ${item.completed ? "bg-emerald-500 border-emerald-500" : "border-zinc-300"}`}
+                    >
+                      {item.completed && (
+                        <svg
+                          className="w-4 h-4 text-white"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                    <span
+                      className={
+                        item.completed ? "line-through text-zinc-400" : ""
+                      }
+                    >
+                      {item.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">
+                      {formatCurrency(item.estimatedCost)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => openEdit(item)}
+                      className="text-zinc-400 hover:text-zinc-600"
+                      aria-label="Edit"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteId(item.id)}
+                      className="text-zinc-400 hover:text-red-600"
+                      aria-label="Delete"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
@@ -595,6 +715,22 @@ export default function PersonalBudgetPage() {
               Essential (Must have)
             </label>
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="hasMonth"
+              checked={formData.hasMonth}
+              onChange={(e) =>
+                setFormData({ ...formData, hasMonth: e.target.checked })
+              }
+              className="w-4 h-4"
+            />
+            <label htmlFor="hasMonth" className="text-sm">
+              Assign to a specific month
+            </label>
+          </div>
+          {formData.hasMonth && (
+            <>
           <Select
             label="Month"
             value={formData.month}
@@ -617,6 +753,8 @@ export default function PersonalBudgetPage() {
               { value: "2028", label: "2028" },
             ]}
           />
+            </>
+          )}
           <div className="flex gap-3 pt-4">
             <Button
               type="button"
